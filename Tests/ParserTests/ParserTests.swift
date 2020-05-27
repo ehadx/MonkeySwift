@@ -16,7 +16,7 @@ final class ParserTests : XCTestCase {
       let y = 10;
       let foobar = 838383;
     """)
-    let program = parser.parseProgram()
+    let program = parser.parseProgram()!
     let error = checkParserErrors()
 
     if error == true {
@@ -25,14 +25,14 @@ final class ParserTests : XCTestCase {
 
     XCTAssertNotNil(program, "parseProgram returned nil", file: "Parser/Parser.swift", line: 35)
 
-    XCTAssertEqual(program!.statements.count, 3, """
+    XCTAssertEqual(program.statements.count, 3, """
       statements does not contain 3 statements. \
-      got=\(program!.statements.count)"
+      got=\(program.statements.count)"
       """)
 
     let tests = [ "x", "y", "foobar" ]
     for (i, expectedIdent) in tests.enumerated() {
-      let stmt = program!.statements[i]
+      let stmt = program.statements[i]
       testLetStatement(statement: stmt, name: expectedIdent)
     }
   }
@@ -57,8 +57,39 @@ final class ParserTests : XCTestCase {
       """)
   }
 
+  func testReturnStatement() {
+    parser = Parser(input: """
+      return 5;
+      return 10;
+      return 993322;
+    """)
+    let program = parser.parseProgram()!
+    let error = checkParserErrors()
+
+    if error == true {
+      return
+    }
+
+    XCTAssertEqual(program.statements.count, 3, """
+      statements does not contain 3 statements. \
+      got=\(program.statements.count)
+      """)
+
+    continueAfterFailure = true
+    for stmt in program.statements {
+      let returnStmt = stmt as! ReturnStatement
+      if type(of: returnStmt) != ReturnStatement.self {
+        XCTFail("stmt is not ReturnStatement. got=\(type(of: returnStmt))")
+        continue
+      }
+      XCTAssertEqual(returnStmt.tokenLiteral(), "return", """
+        returnStmt.TokenLiteral not 'return', got \(returnStmt.tokenLiteral())
+        """)
+    }
+  }
+
   private func checkParserErrors() -> Bool {
-    var errors = parser.errors
+    let errors = parser.errors
     if errors.isEmpty {
       return false
     }

@@ -60,8 +60,8 @@ struct Parser {
   //
   private mutating func parseStatement() -> Statement? {
     switch curToken.type {
-    case .LET: return parseLetStatement()
-    
+    case .LET   : return parseLetStatement()
+    case .RETURN: return parseReturnStatement()
     default:
       return nil  
     }
@@ -89,10 +89,27 @@ struct Parser {
     // We're skipping the expressions until we encounter a semicolon.
     // This should be replaced as soon as we know how to parse them.
     //
-    while curToken.type == .SEMICOLON {
+    while curToken.type != .SEMICOLON {
       nextToken()
     }
     return LetStatement(token: token, name: name)
+  }
+
+  // Constructs a ReturnStatement, with the current token it’s sitting on,
+  // It then brings the parser in place for the expression that comes next
+  // by calling nextToken() and finally skips over every expression until
+  // it encounters a semicolon.
+  //
+  private mutating func parseReturnStatement() -> ReturnStatement {
+    let stmt = ReturnStatement(token: curToken)
+    nextToken()
+
+    // skipping again
+    //
+    while curToken.type != .SEMICOLON {
+      nextToken()
+    }
+    return stmt
   }
 
   // The expectPeek method is one of the “assertion functions” nearly all

@@ -52,3 +52,10 @@ struct Identifier : Expression {
 
   func tokenLiteral() -> String { token.literal }
 }
+
+struct ReturnStatement : Statement {
+  let token      : Token    // .RETURN token
+  var returnValue: Expression?
+
+  func tokenLiteral() -> String { token.literal }
+}
