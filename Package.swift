@@ -13,8 +13,14 @@ let package = Package(
     .target(
       name: "REPL",
       dependencies: ["Lexer"]),
+    .target(
+      name: "Parser",
+      dependencies: ["Lexer"]),
     .testTarget(
       name: "LexerTests",
-      dependencies: ["Lexer"])
+      dependencies: ["Lexer"]),
+    .testTarget(
+      name: "ParserTests",
+      dependencies: ["Lexer", "Parser"])
   ]
 )
