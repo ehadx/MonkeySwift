@@ -12,7 +12,7 @@ let package = Package(
       name: "Lexer"),
     .target(
       name: "REPL",
-      dependencies: ["Lexer"]),
+      dependencies: ["Lexer", "Parser"]),
     .target(
       name: "Parser",
       dependencies: ["Lexer"]),

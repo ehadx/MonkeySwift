@@ -8,21 +8,43 @@
 //===----------------------------------------------------------------------===//
 
 import Lexer
+import Parser
 
-private let prompt = ">> "
+private let prompt     = ">> "
+private let monkeyFace = #"""
+            __,__
+   .--.  .-"     "-.  .--.
+  / .. \/  .-. .-.  \/ .. \
+ | |  '|  /   Y   \  |'  | |
+ | \   \  \ 0 | 0 /  /   / |
+  \ '- ,\.-"""""""-./, -' /
+   ''-' /_   ^ ^   _\ '-''
+       |  \._   _./  |
+       \   \ '~' /   /
+        '._ '-=-' _.'
+           '-----
+"""#
 
 public func start() {
   while true {
     print(prompt, terminator: "")
-
     if let input = readLine() {
-      var lexer = Lexer(input: input)
-      var token = lexer.nextToken()
-
-      while token.type != .EOF {
-        print("{Type:\(token.type)} Literal:\(token.literal)}")
-        token = lexer.nextToken()
+      let parser: Parser = Parser(input: input)
+      let program = parser.parseProgram()
+      if parser.errors.count != 0 {
+        printParserErrors(errors: parser.errors)
+        continue
       }
+      print(program.asString())
     }
+  }
+}
+
+private func printParserErrors(errors: [String]) {
+  print(monkeyFace)
+  print("Woops! We ran into some monkey business here!")
+  print(" parser errors:")
+  for error in errors {
+    print("\t\(error)")
   }
 }
