@@ -7,8 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import Lexer
-import Parser
+import Core
 
 private let prompt     = ">> "
 private let monkeyFace = #"""
@@ -26,16 +25,18 @@ private let monkeyFace = #"""
 """#
 
 public func start() {
+  var env = Enviroment()
   while true {
     print(prompt, terminator: "")
     if let input = readLine() {
-      let parser: Parser = Parser(input: input)
+      let parser  = Parser(input)
       let program = parser.parseProgram()
       if parser.errors.count != 0 {
         printParserErrors(errors: parser.errors)
         continue
       }
-      print(program.asString())
+      let evaluated = eval(program, &env)
+      print(evaluated.inspect())
     }
   }
 }

@@ -1,6 +1,5 @@
 import XCTest
-import Lexer
-@testable import Parser
+@testable import Core
 
 class ParserTests : XCTestCase {
   var parser: Parser!
@@ -22,7 +21,7 @@ class ParserTests : XCTestCase {
       Test(input: "let foo = y;" , expectedIdent: "foo", expectedValue: "y" ),
     ]
     for test in tests {
-      parser = Parser(input: test.input)
+      parser = Parser(test.input)
       let program = parser.parseProgram()
       if checkParserErrors() {
         return
@@ -65,7 +64,7 @@ class ParserTests : XCTestCase {
       Test(input: "return foo;" , expectedValue: "foo")
     ]
     for test in tests {
-      parser = Parser(input: test.input);
+      parser = Parser(test.input);
       let program = parser.parseProgram()
       if checkParserErrors() {
         return
@@ -87,7 +86,7 @@ class ParserTests : XCTestCase {
   }
 
   func testIdentifierExpression() {
-    parser = Parser(input: "foobar;")
+    parser = Parser("foobar;")
     let program = parser.parseProgram()
     if checkParserErrors() {
       return
@@ -114,7 +113,7 @@ class ParserTests : XCTestCase {
   }
 
   func testIntegerLiteralExpression() {
-    parser = Parser(input: "5;")
+    parser = Parser("5;")
     let program = parser.parseProgram()
     if checkParserErrors() {
       return
@@ -155,7 +154,7 @@ class ParserTests : XCTestCase {
       Test(input: "!false;", operator: "!", value: false),
     ]
     for test in tests {
-      parser = Parser(input: test.input)
+      parser = Parser(test.input)
       let program = parser.parseProgram()
       if checkParserErrors() {
         return
@@ -210,7 +209,7 @@ class ParserTests : XCTestCase {
       Test(input: "false == false", leftVal: false, operator: "==", rightVal: false),
     ]
     for test in tests {
-      parser = Parser(input: test.input)
+      parser = Parser(test.input)
       let program = parser.parseProgram()
       if checkParserErrors() {
         return
@@ -281,7 +280,7 @@ class ParserTests : XCTestCase {
         expected: "add(a, b, 1, (2 * 3), (4 + 5), add(6, (7 * 8)))")
     ]
     for test in tests {
-      parser = Parser(input: test.input)
+      parser = Parser(test.input)
       let program = parser.parseProgram()
       if checkParserErrors() {
         return
@@ -301,7 +300,7 @@ class ParserTests : XCTestCase {
       Test(input: "false;", expected: false)
     ]
     for test in tests {
-      parser = Parser(input: test.input)
+      parser = Parser(test.input)
       let program = parser.parseProgram()
       if checkParserErrors() {
         return
@@ -316,7 +315,7 @@ class ParserTests : XCTestCase {
           """)
         return
       }
-      guard let boolean = stmt.expression as? `Boolean` else {
+      guard let boolean = stmt.expression as? BooleanExpression else {
         XCTFail("exp not Boolean. got=\(type(of: stmt.expression))")
         return
       }
@@ -327,7 +326,7 @@ class ParserTests : XCTestCase {
   }
 
   func testIfExpression() {
-    parser = Parser(input: "if (x < y) { x }")
+    parser = Parser("if (x < y) { x }")
     let program = parser.parseProgram()
     if checkParserErrors() {
       return
@@ -364,7 +363,7 @@ class ParserTests : XCTestCase {
   }
 
   func testIfElseExpression() {
-    parser = Parser(input: "if (x < y) { x } else { y }")
+    parser = Parser("if (x < y) { x } else { y }")
     let program = parser.parseProgram()
     if checkParserErrors() {
       return
@@ -409,7 +408,7 @@ class ParserTests : XCTestCase {
   }
 
   func testFunctionLiteralParsing() {
-    parser = Parser(input: "fn(x, y) { x + y }")
+    parser = Parser("fn(x, y) { x + y }")
     let program = parser.parseProgram()
     if checkParserErrors() {
       return
@@ -457,7 +456,7 @@ class ParserTests : XCTestCase {
       Test(input: "fn (x, y, z) {};", expecedParams: ["x", "y", "z"])
     ]
     for test in tests {
-      parser = Parser(input: test.input)
+      parser = Parser(test.input)
       let program = parser.parseProgram()
       if checkParserErrors() {
         return
@@ -475,7 +474,7 @@ class ParserTests : XCTestCase {
   }
 
   func testCallExpressionParsing() {
-    parser = Parser(input: "add(1, 2 * 3, 4 + 5);")
+    parser = Parser("add(1, 2 * 3, 4 + 5);")
     let program = parser.parseProgram()
     if checkParserErrors() {
       return 
@@ -513,7 +512,7 @@ class ParserTests : XCTestCase {
       Test(input: "add(1, 2 * 3, 4 + 5);", expectedIdent: "add", expectedArgs: ["1", "(2 * 3)", "(4 + 5)"])
     ]
     for test in tests {
-      parser = Parser(input: test.input)
+      parser = Parser(test.input)
       let program = parser.parseProgram()
       let stmt = program.statements[0] as! ExpressionStatement
       guard let exp = stmt.expression as? CallExpression else {
@@ -571,8 +570,8 @@ class ParserTests : XCTestCase {
   }
 
   private func testBooleanLiteral(_ exp: Expression, _ value: Bool) {
-    guard let bool = exp as? Boolean else {
-      XCTFail("exp not Boolean. got=\(type(of: exp))")
+    guard let bool = exp as? BooleanExpression else {
+      XCTFail("exp not BooleanExpression. got=\(type(of: exp))")
       return
     }
     XCTAssertEqual(bool.value, value, "bool.value not \(value). got=\(bool.value)")

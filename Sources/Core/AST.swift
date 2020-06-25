@@ -5,12 +5,10 @@
 // 
 //===----------------------------------------------------------------------===//
 
-import Lexer
-
 // Every node in our AST has to implement the Node protocol, meaning it has
 // to provide a tokenLiteral() method.
 //
-internal protocol Node {
+public protocol Node {
   // will be used only for debugging and testing.
   // returns the literal value of the token it’s associated with.
   //
@@ -23,7 +21,7 @@ internal protocol Node {
   func asString() -> String        // this one too?
 }
 
-internal protocol TokenNode : Node {
+protocol TokenNode: Node {
   var token: Token { get }
 }
 
@@ -35,27 +33,27 @@ extension TokenNode {
 // causing it to throw errors when we use a Statement where an Expression
 // should’ve been used, and vice versa.
 //
-internal protocol Statement  : TokenNode {}
-internal protocol Expression : TokenNode {}
+protocol Statement : TokenNode {}
+protocol Expression: TokenNode {}
 
 // The argument is “left side” of the infix operator that’s being parsed.
 //
-internal typealias InfixParseFn = (_ e: Expression) throws -> Expression
+typealias InfixParseFn = (_ e: Expression) throws -> Expression
 
 // A prefix operator doesn’t have a “left side”, per definition.
 //
-internal typealias PrefixParseFn = () throws -> Expression
+typealias PrefixParseFn = () throws -> Expression
 
 // This Program node is going to be the root node of every AST our parser
 // produces.
 //
-public struct Program : Node {
+public struct Program: Node {
   // Every valid Monkey program is a series of statements.
   // Here we stores the statements of a program.
   //
-  internal var statements: [Statement] = []
+  var statements: [Statement] = []
 
-  internal func tokenLiteral() -> String {
+  public func tokenLiteral() -> String {
     statements.count > 0 ? statements[0].tokenLiteral() : ""
   }
 
@@ -68,8 +66,8 @@ public struct Program : Node {
   }
 }
 
-internal struct LetStatement : Statement {
-  let token: Token          // .LET token
+struct LetStatement: Statement {
+  let token: Token          // .let token
   var name : Identifier     // holds the identifier of the binding
   var value: Expression?    // for the expression that produces the value
 
@@ -88,15 +86,15 @@ internal struct LetStatement : Statement {
   }
 }
 
-internal struct Identifier : Expression {
-  let token: Token          // .IDENT token
+struct Identifier: Expression {
+  let token: Token          // .ident token
   var value: String
 
   func asString() -> String { value }
 }
 
-internal struct ReturnStatement : Statement {
-  let token      : Token    // .RETURN token
+struct ReturnStatement: Statement {
+  let token      : Token    // .let token
   var returnValue: Expression?
 
   func asString() -> String {
@@ -112,7 +110,7 @@ internal struct ReturnStatement : Statement {
   }
 }
 
-internal struct ExpressionStatement : Statement {
+struct ExpressionStatement: Statement {
   let token     : Token     // The first token of the expression
   let expression: Expression?
 
@@ -121,7 +119,7 @@ internal struct ExpressionStatement : Statement {
   }
 }
 
-internal struct IntegerLiteral : Expression {
+struct IntegerLiteral: Expression {
   let token: Token
 
   // contains the actual value the integer literal represents in the source
@@ -132,7 +130,7 @@ internal struct IntegerLiteral : Expression {
   func asString() -> String { token.literal }
 }
 
-internal struct PrefixExpression : Expression {
+struct PrefixExpression: Expression {
   let token     : Token        // The prefix token
   let `operator`: String       // contains either "-" or "!"
   let right     : Expression?  // the expression to the right of the operator.
@@ -147,7 +145,7 @@ internal struct PrefixExpression : Expression {
   }
 }
 
-internal struct InfixExpression : Expression {
+struct InfixExpression: Expression {
   let token     : Token
   let left      : Expression
   let `operator`: String
@@ -164,16 +162,16 @@ internal struct InfixExpression : Expression {
   }
 }
 
-internal struct Boolean : Expression {
+struct BooleanExpression: Expression {
   let token: Token
   let value: Bool
 
   func asString() -> String { token.literal }
 }
 
-internal struct IfExpression : Expression {
-  let token: Token
-  let condition: Expression
+struct IfExpression: Expression {
+  let token      : Token
+  let condition  : Expression
   let consequence: BlockStatement
   let alternative: BlockStatement?
 
@@ -191,7 +189,7 @@ internal struct IfExpression : Expression {
   }
 }
 
-internal struct BlockStatement : Statement {
+struct BlockStatement: Statement {
   let token     : Token         // the { token
   var statements: [Statement] = []
 
@@ -204,7 +202,7 @@ internal struct BlockStatement : Statement {
   }
 }
 
-internal struct FunctionLiteral : Expression {
+struct FunctionLiteral: Expression {
   let token     : Token
   let parameters: [Identifier]
   let body      : BlockStatement
@@ -224,7 +222,7 @@ internal struct FunctionLiteral : Expression {
   }
 }
 
-internal struct CallExpression : Expression {
+struct CallExpression: Expression {
   let token    : Token
   var arguments: [Expression] = []
   let function : Expression

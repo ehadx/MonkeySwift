@@ -5,22 +5,9 @@ import PackageDescription
 let package = Package(
   name: "MonkeySwift",
   targets: [
-    .target(
-      name: "MonkeySwift",
-      dependencies: ["REPL"]),
-    .target(
-      name: "Lexer"),
-    .target(
-      name: "REPL",
-      dependencies: ["Lexer", "Parser"]),
-    .target(
-      name: "Parser",
-      dependencies: ["Lexer"]),
-    .testTarget(
-      name: "LexerTests",
-      dependencies: ["Lexer"]),
-    .testTarget(
-      name: "ParserTests",
-      dependencies: ["Lexer", "Parser"])
+    .target(name: "MonkeySwift", dependencies: ["REPL"]),
+    .target(name: "Core"),
+    .target(name: "REPL", dependencies: ["Core"]),
+    .testTarget( name: "CoreTests", dependencies: ["Core"]),
   ]
 )
