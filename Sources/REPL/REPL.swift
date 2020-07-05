@@ -25,27 +25,18 @@ private let monkeyFace = #"""
 """#
 
 public func start() {
+  print(monkeyFace)
   var env = Enviroment()
   while true {
     print(prompt, terminator: "")
     if let input = readLine() {
-      let parser  = Parser(input)
-      let program = parser.parseProgram()
-      if parser.errors.count != 0 {
-        printParserErrors(errors: parser.errors)
+      let parser    = Parser(input)
+      let program   = parser.parseProgram()
+      if program.count == 0 {
         continue
       }
       let evaluated = eval(program, &env)
       print(evaluated.inspect())
     }
-  }
-}
-
-private func printParserErrors(errors: [String]) {
-  print(monkeyFace)
-  print("Woops! We ran into some monkey business here!")
-  print(" parser errors:")
-  for error in errors {
-    print("\t\(error)")
   }
 }

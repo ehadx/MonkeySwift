@@ -67,32 +67,44 @@
   // field is already updated.
   //
   public mutating func nextToken() -> Token {
-    var token: Token
+    var literal: String
     skipWhitespace()
 
     switch char {
     case "=", "!":
       if peekChar() == "=" {      // the next token is also "="
-        token = Token(String(char) + "=")
+        literal = String(char) + "="
         readChar()
       } else {
         fallthrough
       }
-    case "+", "-", "/", "*", "<", ">", ";", ",", "(", ")", "{", "}", "\0":
-      token = Token(String(char))
+    case "+", "-", "/", "*", "<", ">", ";", ",", "(", ")", "{", "}", "[", "]", ":", "\0":
+      literal = String(char)
+    case "\"":
+      let stringToken = Token(string: readString())
+      readChar()
+      return stringToken
     default:
       // check for identifiers or numbers whenever the char is not one of the
       // recognized characters.
       //
-      let literal = Lexer.isLetter(char) ? readIdentifier() :
-        Lexer.isDigit(char) ? readNumber() : nil;
-      if let l = literal {
-        return Token(l)
+      if Lexer.isLetter(char) {
+        let literal = readIdentifier();
+        guard let keywordToken = Token(keyword: literal) else {
+          return Token(ident: literal)
+        }
+        return keywordToken
       }
-      token = Token(String(char))
+      if Lexer.isDigit(char) {
+        return Token(number: readNumber())
+      }
+      literal = String(char)
     }
     readChar()
-    return token
+    guard let charToken = Token(char: literal) else {
+      return Token(illegal: literal)
+    }
+    return charToken
   }
 
   // Reads the identifier/keyword until it encounters a non-letter-character
@@ -123,12 +135,22 @@
     return String(input[start..<end])
   }
 
+  mutating func readString() -> String {
+    let position = self.position + 1
+    repeat {
+      readChar()
+    } while char != "\"" && char != "\0"
+    let start = String.Index(utf16Offset:      position, in: input)
+    let end   = String.Index(utf16Offset: self.position, in: input)
+    return String(input[start..<end]) 
+  }
+
   // characters that pass this test is considered valid in identifiers
   // and keywords.
   // latin numbers are valid but not as the 1st character
   //
   static func isLetter(_ char: Character) -> Bool {
-    // ascii + unicode letters + _ + numbers but not latin numbers
+    // ascii + unicode letters + _ + digits but not latin digits
     // TODO: support emojis
     //
     char.isLetter || char == "_" || char.isNumber && !isDigit(char)

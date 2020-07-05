@@ -36,13 +36,15 @@ extension TokenNode {
 protocol Statement : TokenNode {}
 protocol Expression: TokenNode {}
 
-// The argument is “left side” of the infix operator that’s being parsed.
-//
-typealias InfixParseFn = (_ e: Expression) throws -> Expression
+extension Expression {
+  static func ==(lhs: Self, rhs: Self) -> Bool {
+    lhs.asString() == rhs.asString()
+  }
 
-// A prefix operator doesn’t have a “left side”, per definition.
-//
-typealias PrefixParseFn = () throws -> Expression
+  func hash(into: inout Hasher) {
+    into.combine(asString())
+  }
+}
 
 // This Program node is going to be the root node of every AST our parser
 // produces.
@@ -52,6 +54,7 @@ public struct Program: Node {
   // Here we stores the statements of a program.
   //
   var statements: [Statement] = []
+  public var count: Int { statements.count }
 
   public func tokenLiteral() -> String {
     statements.count > 0 ? statements[0].tokenLiteral() : ""
@@ -63,30 +66,26 @@ public struct Program: Node {
       buffer += statement.asString()
     }
     return buffer
-  }
+  }  
 }
 
 struct LetStatement: Statement {
   let token: Token          // .let token
   var name : Identifier     // holds the identifier of the binding
-  var value: Expression?    // for the expression that produces the value
+  var value: Expression     // for the expression that produces the value
 
   func asString() -> String {
     var buffer = ""
     buffer += tokenLiteral() + " "
     buffer += name.asString()
     buffer += " = "
-
-    if value != nil {
-      buffer += value!.asString()
-    }
-
+    buffer += value.asString()
     buffer += ";"
     return buffer
   }
 }
 
-struct Identifier: Expression {
+struct Identifier: Expression, Hashable {
   let token: Token          // .ident token
   var value: String
 
@@ -95,16 +94,12 @@ struct Identifier: Expression {
 
 struct ReturnStatement: Statement {
   let token      : Token    // .let token
-  var returnValue: Expression?
+  var returnValue: Expression
 
   func asString() -> String {
     var buffer = ""
     buffer += tokenLiteral() + " "
-
-    if returnValue != nil {
-      buffer += returnValue!.asString()
-    }
-
+    buffer += returnValue.asString()
     buffer += ";"
     return buffer
   }
@@ -112,14 +107,12 @@ struct ReturnStatement: Statement {
 
 struct ExpressionStatement: Statement {
   let token     : Token     // The first token of the expression
-  let expression: Expression?
+  let expression: Expression
 
-  func asString() -> String {
-    expression != nil ? expression!.asString() : ""
-  }
+  func asString() -> String { expression.asString() }
 }
 
-struct IntegerLiteral: Expression {
+struct IntegerLiteral: Expression, Hashable {
   let token: Token
 
   // contains the actual value the integer literal represents in the source
@@ -130,46 +123,46 @@ struct IntegerLiteral: Expression {
   func asString() -> String { token.literal }
 }
 
-struct PrefixExpression: Expression {
+struct PrefixExpression: Expression, Hashable {
   let token     : Token        // The prefix token
   let `operator`: String       // contains either "-" or "!"
-  let right     : Expression?  // the expression to the right of the operator.
+  let right     : Expression   // the expression to the right of the operator.
 
   func asString() -> String {
     var buffer = ""
     buffer += "("
     buffer += `operator`
-    buffer += right!.asString()
+    buffer += right.asString()
     buffer += ")"
     return buffer
   }
 }
 
-struct InfixExpression: Expression {
+struct InfixExpression: Expression, Hashable {
   let token     : Token
   let left      : Expression
   let `operator`: String
-  let right     : Expression?
+  let right     : Expression
 
   func asString() -> String {
     var buffer = ""
     buffer += "("
     buffer += left.asString()
     buffer += " " + `operator` + " "
-    buffer += right!.asString()
+    buffer += right.asString()
     buffer += ")"
     return buffer
   }
 }
 
-struct BooleanExpression: Expression {
+struct BooleanExpression: Expression, Hashable {
   let token: Token
   let value: Bool
 
   func asString() -> String { token.literal }
 }
 
-struct IfExpression: Expression {
+struct IfExpression: Expression, Hashable {
   let token      : Token
   let condition  : Expression
   let consequence: BlockStatement
@@ -202,7 +195,7 @@ struct BlockStatement: Statement {
   }
 }
 
-struct FunctionLiteral: Expression {
+struct FunctionLiteral: Expression, Hashable {
   let token     : Token
   let parameters: [Identifier]
   let body      : BlockStatement
@@ -222,7 +215,7 @@ struct FunctionLiteral: Expression {
   }
 }
 
-struct CallExpression: Expression {
+struct CallExpression: Expression, Hashable {
   let token    : Token
   var arguments: [Expression] = []
   let function : Expression
@@ -237,6 +230,62 @@ struct CallExpression: Expression {
     buffer += "("
     buffer += args.joined(separator: ", ")
     buffer += ")"
+    return buffer
+  }
+}
+
+struct StringLiteral: Expression, Hashable {
+  let token: Token
+  let value: String
+
+  func asString() -> String { token.literal }
+}
+
+struct ArrayLiteral: Expression, Hashable {
+  let token   : Token
+  let elements: [Expression]
+
+  func asString() -> String {
+    var buffer = ""
+    var elems: [String] = []
+    for e in elements {
+      elems.append(e.asString())
+    }
+    buffer += "["
+    buffer += elems.joined(separator: ", ")
+    buffer += "]"
+    return buffer;
+  }
+}
+
+struct IndexExpression: Expression, Hashable {
+  let token: Token
+  let left : Expression
+  let index: Expression
+
+  func asString() -> String {
+    var buffer = ""
+    buffer += "("
+    buffer += left.asString()
+    buffer += "["
+    buffer += index.asString()
+    buffer += "]"
+    buffer += ")"
+    return buffer
+  }
+}
+
+struct HashLiteral: Expression, Hashable {
+  let token: Token
+  var store: [AnyHashable: Expression] = [:]
+
+  func asString() -> String {
+    var buffer = ""
+    var store: [String] = []
+    for (key, value) in self.store {
+      store.append("\((key as! Expression).asString()): \(value.asString())")
+    }
+    buffer += "{\(store.joined(separator: ", "))}"
     return buffer
   }
 }

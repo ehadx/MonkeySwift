@@ -1,6 +1,6 @@
 //===-- Parser ------------------------------------------------*- Swift -*-===//
 //
-// This module implements the monkey parser.
+// Implements the monkey parser.
 // The parser will take the tokens produced by the lexer and turn them into a
 // data structure that represent the source code, checking for correct syntax
 // in the process.
@@ -16,20 +16,28 @@ public final class Parser {
   //
   var curToken : Token!         // Points to current token
   var peekToken: Token!         // After the current token
-  
-  private var errorsArr: [String] = []      // Holds parsing errors
-  public  var errors   : [String] { errorsArr }
+
+  // The argument is “left side” of the infix operator that’s being parsed.
+  //
+  typealias InfixParseFn = (_ e: Expression) throws -> Expression
+
+  // A prefix operator doesn’t have a “left side”, per definition.
+  //
+  typealias PrefixParseFn = () throws -> Expression
 
   lazy var prefixParseFns: [Token.`Type`: PrefixParseFn] = [
-    .ident    : parseIdentifier,
-    .int      : parseIntegerLiteral,
-    .bang     : parsePrefixExpression,
-    .minus    : parsePrefixExpression,
-    .true     : parseBoolean,
-    .false    : parseBoolean,
-    .leftParen: parseGroupedExpression,
-    .if       : parseIfExpression,
-    .function : parseFunctionLiteral,
+    .ident      : parseIdentifier,
+    .int        : parseIntegerLiteral,
+    .bang       : parsePrefixExpression,
+    .minus      : parsePrefixExpression,
+    .true       : parseBoolean,
+    .false      : parseBoolean,
+    .leftParen  : parseGroupedExpression,
+    .if         : parseIfExpression,
+    .function   : parseFunctionLiteral,
+    .string     : parseStringLiteral,
+    .leftBracket: parseArrayLiteral,
+    .leftBrace  : parseHashLiteral,
   ]
   lazy var infixParseFns: [Token.`Type`: InfixParseFn]  = [
     .plus       : parseInfixExpression,
@@ -40,7 +48,8 @@ public final class Parser {
     .notEqual   : parseInfixExpression,
     .lessThan   : parseInfixExpression,
     .greaterThan: parseInfixExpression,
-    .leftParen  : parseCallExpression,
+    .leftParen  : parseCallExpression ,
+    .leftBracket: parseIndexExpression,
   ]
 
   public init(_ input: String) {
@@ -65,45 +74,48 @@ public final class Parser {
   // Our expectPeek here checks the type of the peekToken and only if the
   // type is correct does it advance the tokens by calling nextToken.
   //
-  func expectPeek(_ type: Token.`Type`) -> (Bool, String) {
+  func expectPeek(_ type: Token.`Type`) throws {
     if peekToken.type == type {
       nextToken()
-      return (true, "")
     } else {
-      return (false, """
-        Expected next token to be \(type). \
-        got \(peekToken.type) instead"
-        """) 
+      throw ParseError.unexpectedToken(type, got: peekToken)
     }
-  }
-
-  func noPrefixParseFnError(_ tokenType: Token.`Type`) {
-    errorsArr.append("no prefix parse function for \(tokenType) found")
   }
 
   // Constructs the root node of the AST, a Program. Then iterates over every
   // token in the input until it encounters an.eof token by repeatedly calling
   // nextToken.
   // In every iteration it calls parseStatement. If parseStatement returned
-  // something other than nil, a Statement, its return value is added to
-  // statements array of the AST root node. When nothing is left to parse the
-  // Program root node is returned.
+  // its return value is added to statements array of the AST root node.
+  // When nothing is left to parse the Program root node is returned.
   //
   public func parseProgram() -> Program {
     var program = Program()
-    while curToken.type != .eof {
-      if let stmt = parseStatement() {
+    do {
+      while curToken.type != .eof {
+        let stmt = try parseStatement()
         program.statements.append(stmt)
+        nextToken()
       }
-      nextToken()
+      return program
+      
+      // TODO: better error handling
+      //
+    } catch ParseError.unexpectedToken(let expected, got: let got) {
+      fatalError("unexpectedToken: '\(got.literal)' expected token '\(expected)' instead")
+    } catch ParseError.noPrefixParseFn(let type) {
+      fatalError("parsing '\(type)' is not supported yet")
+    } catch ParseError.unparsableAsInt(for: let value) {
+      fatalError("cannot parse '\(value)' as Int")
+    } catch {
+      fatalError("\(error)")
     }
-    return program
   }
 
-  // TODO: better error handling to get rid of all useless optionals
-  //
-  enum ParseError: Error {
-    case error(_ errorMsg: String)
+  public enum ParseError: Error {
+    case unexpectedToken(_ type : Token.`Type`, got: Token)
+    case noPrefixParseFn(  for  : Token.`Type`            )
+    case unparsableAsInt(_ value: String                  )
   }
 }
 
@@ -112,12 +124,12 @@ public final class Parser {
 extension Parser {
   // Runs the corresponding parsing method depending on the type of curToken
   //
-  func parseStatement() -> Statement? {
+  func parseStatement() throws -> Statement {
     switch curToken.type {
-    case .let   : return parseLetStatement()
-    case .return: return parseReturnStatement()
+    case .let   : return try parseLetStatement()
+    case .return: return try parseReturnStatement()
     default:
-      return parseExpressionStatement()
+      return try parseExpressionStatement()
     }
   }
 
@@ -127,23 +139,15 @@ extension Parser {
   // First it expects a .IDENT token, which it then uses to construct an
   // Identifier node. Then it expects an equal sign.
   //
-  func parseLetStatement() -> LetStatement? {
-    let token       = curToken!
-    var (peek, msg) = expectPeek(.ident)
-    if !peek {
-      errorsArr.append(msg)
-      return nil
-    }
-    
-    let name    = Identifier(token: curToken!, value: curToken.literal)
-    (peek, msg) = expectPeek(.assign)
-    if !peek {
-      errorsArr.append(msg)
-      return nil
-    }
+  func parseLetStatement() throws -> LetStatement {
+    let token = curToken!
+    try expectPeek(.ident)
+
+    let name = Identifier(token: curToken!, value: curToken.literal)
+    try expectPeek(.assign)
     nextToken()
 
-    let value = parseExpression(.lowest)
+    let value = try parseExpression(.lowest)
     if peekToken.type == .semicolon {
       nextToken()
     }
@@ -154,10 +158,10 @@ extension Parser {
   // It then brings the parser in place for the expression that comes next
   // by calling nextToken().
   //
-  func parseReturnStatement() -> ReturnStatement {
+  func parseReturnStatement() throws -> ReturnStatement {
     let token = curToken!
     nextToken()
-    let returnVal = parseExpression(.lowest)
+    let returnVal = try parseExpression(.lowest)
     if peekToken.type == .semicolon {
       nextToken()
     }
@@ -172,23 +176,22 @@ extension Parser {
   // statements to have optional semicolons (which makes it easier to type
   // something like 5 + 5 into the REPL later on).
   // 
-  func parseExpressionStatement() -> ExpressionStatement {
+  func parseExpressionStatement() throws -> ExpressionStatement {
     let token      = curToken!
-    let expression = parseExpression(.lowest)
+    let expression = try parseExpression(.lowest)
     if peekToken.type == .semicolon {
       nextToken()
     }
     return ExpressionStatement(token: token, expression: expression)
   }
 
-  func parseBlockStatement() -> BlockStatement {
+  func parseBlockStatement() throws -> BlockStatement {
     var block = BlockStatement(token: curToken)
     nextToken()
 
     while curToken.type != .rightBrace && curToken.type != .eof {
-      if let stmt = parseStatement() {
-        block.statements.append(stmt)
-      }
+      let stmt = try parseStatement()
+      block.statements.append(stmt)
       nextToken()
     }
     return block
@@ -198,28 +201,19 @@ extension Parser {
 // Expression Parsing
 //
 extension Parser {
-  func parseExpression(_ precedence: Precedence) -> Expression? {
+  func parseExpression(_ precedence: Precedence) throws -> Expression {
     guard let `prefix` = prefixParseFns[curToken.type] else {
-      noPrefixParseFnError(curToken.type)
-      return nil
+      throw ParseError.noPrefixParseFn(for: curToken.type)
     }
-    do {
-      var leftExp: Expression
-      try leftExp = `prefix`()
-      while peekToken.type != .semicolon && precedence < Precedence(peekToken.type) {
-        guard let `infix` = infixParseFns[peekToken.type] else {
-          return leftExp
-        }
-        nextToken()
-        try leftExp = `infix`(leftExp)
+    var leftExp = try `prefix`() 
+    while peekToken.type != .semicolon && precedence < Precedence(peekToken.type) {
+      guard let `infix` = infixParseFns[peekToken.type] else {
+        return leftExp
       }
-      return leftExp
-    } catch ParseError.error(let msg) {
-      errorsArr.append(msg)
-    } catch {
-      errorsArr.append("\(error)")
+      nextToken()
+      leftExp = try `infix`(leftExp)
     }
-    return nil
+    return leftExp
   }
 
   func parseIdentifier() -> Expression {
@@ -228,25 +222,25 @@ extension Parser {
 
   func parseIntegerLiteral() throws -> Expression {
     guard let value = Int64(curToken.literal) else {
-      throw ParseError.error("could not parse \(curToken.literal) as integer")
+      throw ParseError.unparsableAsInt(curToken.literal)
     }
     return IntegerLiteral(token: curToken, value: value)
   }
 
-  func parsePrefixExpression() -> Expression {
+  func parsePrefixExpression() throws -> Expression {
     let token      = curToken!
     let `operator` = token.literal
     nextToken()
-    let right = parseExpression(.prefix)
+    let right = try parseExpression(.prefix)
     return PrefixExpression(token: token, operator: `operator`, right: right)
   }
 
-  func parseInfixExpression(left: Expression) -> Expression {
-    let token       = curToken!
-    let `operator`  = token.literal
-    let precedence  = Precedence(curToken.type)
+  func parseInfixExpression(left: Expression) throws -> Expression {
+    let token      = curToken!
+    let `operator` = token.literal
+    let precedence = Precedence(curToken.type)
     nextToken()
-    let right = parseExpression(precedence)
+    let right = try parseExpression(precedence)
     return InfixExpression(token: token, left: left, operator: `operator`, right: right)
   }
 
@@ -256,43 +250,26 @@ extension Parser {
 
   func parseGroupedExpression() throws -> Expression {
     nextToken()
-    let exp = parseExpression(.lowest)!
-    let (peek, msg) = expectPeek(.rightParen)
-    if !peek {
-      throw ParseError.error(msg);
-    }
+    let exp = try parseExpression(.lowest)
+    try expectPeek(.rightParen)
     return exp
   }
 
   func parseIfExpression() throws -> Expression {
     let token = curToken!
-    var (peek, msg) = expectPeek(.leftParen)
-    if !peek {
-      throw ParseError.error(msg)
-    }
+    try expectPeek(.leftParen)
     nextToken()
 
-    let condition = parseExpression(.lowest)!
-    (peek, msg) = expectPeek(.rightParen)
-    if !peek {
-      throw ParseError.error(msg)
-    }
+    let condition = try parseExpression(.lowest)
+    try expectPeek(.rightParen)
+    try expectPeek(.leftBrace)
 
-    (peek, msg) = expectPeek(.leftBrace) 
-    if !peek {
-      throw ParseError.error(msg)
-    }
-
-    let consequence = parseBlockStatement()
+    let consequence = try parseBlockStatement()
     var alternative: BlockStatement?
     if peekToken.type == .else {
       nextToken()
-
-      (peek, msg) = expectPeek(.leftBrace)
-      if !peek {
-        throw ParseError.error(msg)
-      }
-      alternative = parseBlockStatement()
+      try expectPeek(.leftBrace)
+      alternative = try parseBlockStatement()
     }
     return IfExpression(
       token: token,condition: condition,
@@ -301,17 +278,11 @@ extension Parser {
 
   func parseFunctionLiteral() throws -> Expression {
     let token = curToken!
-    var (peek, msg) = expectPeek(.leftParen)
-    if !peek {
-      throw ParseError.error(msg)
-    }
+    try expectPeek(.leftParen)
 
     let params = try parseFunctionParameters()
-    (peek, msg) = expectPeek(.leftBrace)
-    if !peek {
-      throw ParseError.error(msg)
-    }
-    let body = parseBlockStatement()
+    try expectPeek(.leftBrace)
+    let body = try parseBlockStatement()
     return FunctionLiteral(token: token, parameters: params, body: body)
   }
 
@@ -331,23 +302,13 @@ extension Parser {
       idents.append(ident) 
     }
 
-    let (peek, msg) = expectPeek(.rightParen)
-    if !peek {
-      throw ParseError.error(msg)
-    }
+    try expectPeek(.rightParen)
     return idents
   }
 
   func parseCallExpression(_ function: Expression) throws -> Expression {
     let token     = curToken!
-    var arguments: [Expression] = []
-    do {
-      try arguments = parseCallArguments()
-    } catch ParseError.error(let msg) {
-      throw ParseError.error(msg)
-    } catch {
-      throw error
-    }
+    let arguments = try parseExpressionList(.rightParen)
     return CallExpression(token: token, arguments: arguments, function: function)
   }
 
@@ -358,17 +319,67 @@ extension Parser {
       return args
     }
     nextToken()
-    args.append(parseExpression(.lowest)!)
+    args.append(try parseExpression(.lowest))
     while peekToken.type == .comma {
       nextToken()
       nextToken()
-      args.append(parseExpression(.lowest)!)
+      args.append(try parseExpression(.lowest))
     }
 
-    let (peek, msg) = expectPeek(.rightParen)
-    if !peek {
-      throw ParseError.error(msg)
-    }
+    try expectPeek(.rightParen)
     return args
+  }
+
+  func parseStringLiteral() -> Expression {
+    return StringLiteral(token: curToken, value: curToken.literal)
+  }
+
+  func parseArrayLiteral() throws -> Expression {
+    let token    = curToken!
+    let elements = try parseExpressionList(.rightBracket)
+    return ArrayLiteral(token: token, elements: elements)
+  }
+
+  func parseExpressionList(_ end: Token.`Type`) throws -> [Expression] {
+    var list: [Expression] = []
+    if peekToken.type == end {
+      nextToken()
+      return list
+    }
+    nextToken()
+    list.append(try parseExpression(.lowest))
+    while peekToken.type == .comma {
+      nextToken()
+      nextToken()
+      list.append(try parseExpression(.lowest))
+    }
+
+    try expectPeek(end)
+    return list
+  }
+
+  func parseIndexExpression(_ left: Expression) throws -> Expression {
+    let token = curToken!
+    nextToken()
+    let index = try parseExpression(.lowest)
+    try expectPeek(.rightBracket)
+    return IndexExpression(token: token, left: left, index: index)
+  }
+
+  func parseHashLiteral() throws -> Expression {
+    var hash = HashLiteral(token: curToken)
+    while peekToken.type != .rightBrace {
+      nextToken()
+      let key = try parseExpression(.lowest)
+      try expectPeek(.colon)
+      nextToken()
+      let value = try parseExpression(.lowest)
+      hash.store[key as! AnyHashable] = value
+      if peekToken.type != .rightBrace {
+        try expectPeek(.comma)
+      }
+    }
+    try expectPeek(.rightBrace)
+    return hash
   }
 }

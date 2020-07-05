@@ -1,7 +1,7 @@
 import XCTest
 @testable import Core
 
-final class EvaluatorTests : XCTestCase {
+final class EvaluatorTests: XCTestCase {
   override func setUp() {
     super.setUp()
     continueAfterFailure = false
@@ -103,7 +103,7 @@ final class EvaluatorTests : XCTestCase {
       if let integer = test.expected as? Int {
         testIntegerObject(evaluated, Int64(integer))
       } else {
-        testNullObject(evaluated!)
+        testNullObject(evaluated)
       }
     }
   }
@@ -139,13 +139,15 @@ final class EvaluatorTests : XCTestCase {
       let expected: String
     }
     let tests = [
-      Test(input: "5 + true"                     , expected: "type mismatch: integer + boolean"   ),
-      Test(input: "5 + true; 5;"                 , expected: "type mismatch: integer + boolean"   ),
-      Test(input: "-true"                        , expected: "unknown operator: -boolean"         ),
-      Test(input: "true + false"                 , expected: "unknown operator: boolean + boolean"),
-      Test(input: "5; true + false; 5"           , expected: "unknown operator: boolean + boolean"),
-      Test(input: "if (10 > 1) { true + false; }", expected: "unknown operator: boolean + boolean"),
-      Test(input: "foobar"                       , expected: "identifier foobar not found!"       ),
+      Test(input: "5 + true"                          , expected: "type mismatch: integer + boolean"   ),
+      Test(input: "5 + true; 5;"                      , expected: "type mismatch: integer + boolean"   ),
+      Test(input: "-true"                             , expected: "unknown operator: -boolean"         ),
+      Test(input: "true + false"                      , expected: "unknown operator: boolean + boolean"),
+      Test(input: "5; true + false; 5"                , expected: "unknown operator: boolean + boolean"),
+      Test(input: "if (10 > 1) { true + false; }"     , expected: "unknown operator: boolean + boolean"),
+      Test(input: "\"Hello\" - \"World\""             , expected: "unknown operator: string - string"  ),
+      Test(input: "foobar"                            , expected: "identifier foobar not found!"       ),
+      Test(input: #"{"name": "Monkey"}[fn(x) { x }];"#, expected: "unusable as hash key: Function"     ),
       Test(input: """
         if (10 > 1) {
           if (10 > 1) {
@@ -230,14 +232,156 @@ final class EvaluatorTests : XCTestCase {
     testIntegerObject(evaluated, 70)
   }
 
-  private func testEval(_ input: String) -> Object? {
+  func testStringLiteral() {
+    let evaluated = testEval("\"Hello World!\"");
+    guard let str = evaluated as? StringObj else {
+      XCTFail("object is not String. got=\(type(of: evaluated)) (\(String(describing: evaluated)))")
+      return
+    }
+    XCTAssertEqual(str.value, "Hello World!", "String has wrong value. got=\(str.value)")
+  }
+
+  func testStringConcatenation() {
+    let evaluated = testEval("\"Hello\" + \" \" + \"World!\"")
+    guard let str = evaluated as? StringObj else {
+      XCTFail("object is not String. got=\(type(of: evaluated)) (\(String(describing: evaluated)))")
+      return
+    }
+    XCTAssertEqual(str.value, "Hello World!", "String has wrong value. got=\(str.value)") 
+  }
+
+  func testBuiltinFunctions() {
+    struct Test {
+      let input   : String
+      let expected: Any
+    }
+    let tests = [
+      Test(input: "len(\"\")"            , expected:  0),
+      Test(input: "len(\"four\")"        , expected:  4),
+      Test(input: "len(\"hello world\")" , expected: 11),
+      Test(input: "len(1)"               , expected: "argument to `len` not supported, got Integer"),
+      Test(input: "len(\"one\", \"two\")", expected: "wrong number of arguments. got=2, want=1"    ),
+    ]
+    for test in tests {
+      let evaluated = testEval(test.input)
+      if let int = test.expected as? Int {
+        testIntegerObject(evaluated, Int64(int))
+      } else if let string = test.expected as? String {
+        guard let error = evaluated as? ErrorObj else {
+          XCTFail("object is not Error. got=\(type(of: evaluated)) (\(String(describing: evaluated)))")
+          return
+        }
+        XCTAssertEqual(error.message, string, """
+          wrong error message. expected=\(string), got=\(error.message)
+          """)
+      }
+    }
+  }
+
+  func testArrayLiteral() {
+    let evaluated = testEval("[1, 2 * 2, 3 + 3]")
+    guard let result = evaluated as? ArrayObj else {
+      XCTFail("object is not Array. got=\(type(of: evaluated)) (\(String(describing: evaluated)))")
+      return
+    }
+    XCTAssertEqual(result.elements.count, 3, "array has wrong num of elements. got=\(result.elements.count)")
+    testIntegerObject(result.elements[0], 1)
+    testIntegerObject(result.elements[1], 4)
+    testIntegerObject(result.elements[2], 6)
+  }
+
+  func testArrayIndexExpressions() {
+    struct Test {
+      let input   : String
+      let expected: Any
+    }
+    let tests = [
+      Test(input: "[1, 2, 3][0]"                                                  , expected:      1),
+      Test(input: "[1, 2, 3][1]"                                                  , expected:      2),
+      Test(input: "[1, 2, 3][2]"                                                  , expected:      3),
+      Test(input: "let i = 0; [1][i];"                                            , expected:      1),
+      Test(input: "[1, 2, 3][1 + 1]"                                              , expected:      3),
+      Test(input: "let myArray = [1, 2, 3]; myArray[2]"                           , expected:      3),
+      Test(input: "let myArray = [1, 2, 3]; myArray[0] + myArray[1] + myArray[2];", expected:      6),
+      Test(input: "let myArray = [1, 2, 3]; let i = myArray[0]; myArray[i]"       , expected:      2),
+      Test(input: "[1, 2, 3][3]"                                                  , expected: Null()),
+      Test(input: "[1, 2, 3][-1]"                                                 , expected: Null()),
+    ]
+    for test in tests {
+      let evaluated = testEval(test.input)
+      guard let integer = evaluated as? Integer else {
+        testNullObject(evaluated)
+        return
+      }
+      testIntegerObject(integer, Int64(test.expected as! Int))
+    }
+  }
+
+  func testHashLiteral() {
+    let evaluated = testEval("""
+      let two = "two";
+      {
+        "one": 10 - 9,
+        two: 1 + 1,
+        "thr" + "ee": 6 / 2, 4: 4,
+        true: 5,
+        false: 6
+      } 
+    """)
+    guard let result = evaluated as? Hash else {
+      XCTFail("Eval didn't return Hash. got=\(type(of: evaluated)) (\(String(describing: evaluated)))")
+      return
+    }
+    let expected: [AnyHashable: Int64] = [
+      StringObj(value:   "one"): 1,
+      StringObj(value:   "two"): 2,
+      StringObj(value: "three"): 3,
+        Integer(value:       4): 4,
+        Boolean(value:    true): 5,
+        Boolean(value:   false): 6,
+    ]
+    XCTAssertEqual(result.store.count, expected.count, "Hash has wrong num of store. got=\(result.store.count)")
+    for (expectedKey, expectedValue) in expected {
+      guard let value = result.store[expectedKey] else {
+        XCTFail("no value for given key in store")
+        return
+      }
+      testIntegerObject(value, expectedValue)
+    }
+  }
+
+  func testHashIndexExpressions() {
+    struct Test {
+      let input   : String
+      let expected: Any
+    }
+    let tests = [
+      Test(input: #"{"foo": 5}["foo"]"#               , expected:      5),
+      Test(input: #"{"foo": 5}["bar"]"#               , expected: Null()),
+      Test(input: #"let key = "foo"; {"foo": 5}[key]"#, expected:      5),
+      Test(input: #"{}["foo"]"#                       , expected: Null()),
+      Test(input: "{5: 5}[5]"                         , expected:      5),
+      Test(input: "{true: 5}[true]"                   , expected:      5),
+      Test(input: "{false: 5}[false]"                 , expected:      5),
+    ]
+    for test in tests {
+      let evaluated = testEval(test.input)
+      guard let int = evaluated as? Integer else {
+        testNullObject(evaluated)
+        return
+      }
+      testIntegerObject(int, Int64(test.expected as! Int))
+    }
+  }
+
+  private func testEval(_ input: String) -> Object {
     let parser  = Parser(input)
     let program = parser.parseProgram()
     var env     = Enviroment()
     return eval(program, &env)
   }
 
-  private func testIntegerObject(_ obj: Object?, _ expected: Int64) {
+  private func testIntegerObject(_ obj: Object, _ expected: Int64) {
     guard let result = obj as? Integer else {
       XCTFail("object is not Integer. got=\(type(of: obj)) (\(String(describing: obj)))")
       return
@@ -247,7 +391,7 @@ final class EvaluatorTests : XCTestCase {
       """)
   }
 
-  private func testBooleanObject(_ obj: Object?, _ expected: Bool) {
+  private func testBooleanObject(_ obj: Object, _ expected: Bool) {
     guard let result = obj as? Boolean else {
       XCTFail("object is not Boolean. got=\(type(of: obj)) (\(String(describing: obj)))")
       return

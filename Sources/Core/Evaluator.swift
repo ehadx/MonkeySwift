@@ -14,14 +14,14 @@ public func eval(_ node: Node, _ env: inout Enviroment) -> Object {
     return evalBlockStatement(n, &env)
   }
   if let n = node as? ExpressionStatement {
-    return eval(n.expression!, &env)
+    return eval(n.expression, &env)
   }
   if let n = node as? ReturnStatement {
-    let val = eval(n.returnValue!, &env)
+    let val = eval(n.returnValue, &env)
     return isError(val) ? val : ReturnValue(value: val)
   }
   if let n = node as? LetStatement {
-    let val = eval(n.value!, &env)
+    let val = eval(n.value, &env)
     if isError(val) {
       return val
     }
@@ -37,7 +37,7 @@ public func eval(_ node: Node, _ env: inout Enviroment) -> Object {
     return Boolean(value: n.value)
   }
   if let n = node as? PrefixExpression {
-    let right = eval(n.right!, &env)
+    let right = eval(n.right, &env)
     return isError(right) ? right : evalPrefixExpression(n.operator, right)
   }
   if let n = node as? InfixExpression {
@@ -45,7 +45,7 @@ public func eval(_ node: Node, _ env: inout Enviroment) -> Object {
     if isError(left) {
       return left
     }
-    let right = eval(n.right!, &env)
+    let right = eval(n.right, &env)
     return isError(right) ? right : evalInfixExpression(n.operator, left, right)
   }
   if let n = node as? IfExpression {
@@ -70,8 +70,31 @@ public func eval(_ node: Node, _ env: inout Enviroment) -> Object {
     }
     return applyFunction(function, args)
   }
-  fatalError("evaluation of \(type(of: node)) not implemented")
-  return Null()
+  if let n = node as? StringLiteral {
+    return StringObj(value: n.value)
+  }
+  if let n = node as? ArrayLiteral {
+    let elements = evalExpressions(n.elements, &env)
+    if elements.count == 1 && isError(elements[0]) {
+      return elements[0]
+    }
+    return ArrayObj(elements: elements)
+  }
+  if let n = node as? IndexExpression {
+    let left = eval(n.left, &env)
+    if isError(left) {
+      return left
+    }
+    let index = eval(n.index, &env)
+    if isError(index) {
+      return index
+    }
+    return evalIndexExpression(left, index)
+  }
+  if let n = node as? HashLiteral {
+    return evalHashLiteral(n, &env)
+  }
+  return ErrorObj(message: "evaluation of \(type(of: node)) not implemented")
 }
 
 func evalProgram(_ program: Program, _ env: inout Enviroment) -> Object {
@@ -120,6 +143,9 @@ func evalInfixExpression(_ op: String, _ left: Object, _ right: Object) -> Objec
   if left.type == .integer && right.type == .integer {
     return evalIntegerInfixExpression(op, left, right)
   }
+  if left.type == .string && right.type == .string {
+    return evalStringInfixExpression(op, left, right)
+  }
   if op == "==" {
     let leftVal  =  left as! Boolean
     let rightVal = right as! Boolean
@@ -153,6 +179,15 @@ func evalIntegerInfixExpression(_ op: String, _ left: Object, _ right: Object) -
   }
 }
 
+func evalStringInfixExpression(_ op: String, _ left: Object, _ right: Object) -> Object {
+  if op != "+" {
+    return ErrorObj(message: "unknown operator: \(left.type) \(op) \(right.type)")
+  }
+  let leftVal  = ( left as! StringObj).value
+  let rightVal = (right as! StringObj).value
+  return StringObj(value: leftVal + rightVal)
+}
+
 func evalIfExpression(_ e: IfExpression, _ env: inout Enviroment) -> Object {
   let condition = eval(e.condition, &env)
   if isError(condition) {
@@ -182,6 +217,9 @@ func evalIdentifier(_ node: Identifier, _ env: inout Enviroment) -> Object {
   if let val = env[node.value] {
     return val
   }
+  if let builtin = builtins[node.value] {
+    return builtin
+  }
   return ErrorObj(message: "identifier \(node.value) not found!")
 }
 
@@ -197,13 +235,66 @@ func evalExpressions(_ exps: [Expression], _ env: inout Enviroment) -> [Object] 
   return result
 }
 
-func applyFunction(_ fn: Object, _ args: [Object]) -> Object {
-  guard let function = fn as? Function else {
-    return ErrorObj(message: "not a function: \(fn.type)")
+func evalIndexExpression(_ left: Object, _ index: Object) -> Object {
+  if let l = left as? ArrayObj {
+    return evalArrayIndexExpression(l, index)
+  } else if let l = left as? Hash {
+    return evalHashIndexExpression(l, index)
   }
-  var extendedEnv = extendFunctionEnv(function, args)
-  let evaluated   = eval(function.body, &extendedEnv)
-  return unwrapReturnValue(evaluated)
+  return ErrorObj(message: "index operator not supported: \(type(of: left))")
+}
+
+func evalArrayIndexExpression(_ array: Object, _ index: Object) -> Object {
+  let arrayObject = array as! ArrayObj
+  let idx         = (index as! Integer).value
+  let max         = Int64(arrayObject.elements.count) - 1
+  if idx < 0 || idx > max {
+    return Null()
+  }
+  return arrayObject.elements[Int(idx)]
+}
+
+func evalHashLiteral(_ node: HashLiteral, _ env: inout Enviroment) -> Object {
+  var store: [AnyHashable: Object] = [:]
+  for (keyNode, valueNode) in node.store {
+    let key = eval(keyNode as! Expression, &env)
+    if isError(key) {
+      return key
+    }
+    let value = eval(valueNode, &env)
+    if isError(key) {
+      return key
+    }
+    guard let rKey = key as? AnyHashable else {
+      return ErrorObj(message: "unusable as hash key: \(type(of: key))")
+    }
+    store[rKey] = value
+  }
+  return Hash(store: store)
+}
+
+func evalHashIndexExpression(_ hash: Object, _ index: Object) -> Object {
+  let hashObj = hash as! Hash
+  guard let key = index as? AnyHashable else {
+    return ErrorObj(message: "unusable as hash key: \(type(of: index))")
+  }
+  guard let value = hashObj.store[key] else {
+    return Null()
+  }
+  return value
+}
+
+func applyFunction(_ fn: Object, _ args: [Object]) -> Object {
+  if let function = fn as? Function {
+    var extendedEnv = extendFunctionEnv(function, args)
+    let evaluated   = eval(function.body, &extendedEnv)
+    return unwrapReturnValue(evaluated)
+  }
+  if let function = fn as? Builtin {
+    let fn = unsafeBitCast(function.fn, to: (([Object]) -> Object).self)
+    return fn(args)
+  }
+  return ErrorObj(message: "not a function: \(fn.type)")
 }
 
 func extendFunctionEnv(_ fn: Function, _ args: [Object]) -> Enviroment {

@@ -1,7 +1,7 @@
 import XCTest
 @testable import Core
 
-class ParserTests : XCTestCase {
+class ParserTests: XCTestCase {
   var parser: Parser!
 
   override func setUp() {
@@ -11,7 +11,7 @@ class ParserTests : XCTestCase {
 
   func testLetStatements() {
     struct Test {
-      let input: String
+      let input        : String
       let expectedIdent: String
       let expectedValue: Any
     }
@@ -23,9 +23,6 @@ class ParserTests : XCTestCase {
     for test in tests {
       parser = Parser(test.input)
       let program = parser.parseProgram()
-      if checkParserErrors() {
-        return
-      }
       XCTAssertEqual(program.statements.count, 1, """
         statements does not contain 1 statements. \
         got=\(program.statements.count)"
@@ -33,7 +30,7 @@ class ParserTests : XCTestCase {
       let stmt = program.statements[0]
       testLetStatement(stmt, test.expectedIdent)
       let letStmt = stmt as! LetStatement;
-      testLiteralExpression(letStmt.value!, test.expectedValue)
+      testLiteralExpression(letStmt.value, test.expectedValue)
     }
   }
 
@@ -55,7 +52,7 @@ class ParserTests : XCTestCase {
 
   func testReturnStatements() {
     struct Test {
-      let input: String
+      let input        : String
       let expectedValue: Any
     }
     let tests = [
@@ -64,11 +61,8 @@ class ParserTests : XCTestCase {
       Test(input: "return foo;" , expectedValue: "foo")
     ]
     for test in tests {
-      parser = Parser(test.input);
+      parser      = Parser(test.input);
       let program = parser.parseProgram()
-      if checkParserErrors() {
-        return
-      }
       XCTAssertEqual(program.statements.count, 1, """
         statements does not contain 1 statements. \
         got=\(program.statements.count)
@@ -81,16 +75,13 @@ class ParserTests : XCTestCase {
       XCTAssertEqual(returnStmt.tokenLiteral(), "return", """
         returnStmt.TokenLiteral not 'return', got \(returnStmt.tokenLiteral())
         """)
-      testLiteralExpression(returnStmt.returnValue!, test.expectedValue)
+      testLiteralExpression(returnStmt.returnValue, test.expectedValue)
     }
   }
 
   func testIdentifierExpression() {
-    parser = Parser("foobar;")
+    parser      = Parser("foobar;")
     let program = parser.parseProgram()
-    if checkParserErrors() {
-      return
-    }
     XCTAssertEqual(program.statements.count, 1, """
       program has not enough statements. got=\(program.statements.count)
       """)
@@ -115,9 +106,6 @@ class ParserTests : XCTestCase {
   func testIntegerLiteralExpression() {
     parser = Parser("5;")
     let program = parser.parseProgram()
-    if checkParserErrors() {
-      return
-    }
     XCTAssertEqual(program.statements.count, 1, """
       program has not enough statements. got=\(program.statements.count)
       """)
@@ -154,11 +142,8 @@ class ParserTests : XCTestCase {
       Test(input: "!false;", operator: "!", value: false),
     ]
     for test in tests {
-      parser = Parser(test.input)
+      parser      = Parser(test.input)
       let program = parser.parseProgram()
-      if checkParserErrors() {
-        return
-      }
       XCTAssertEqual(program.statements.count, 1, """
         program does not contain 1 statement. got=\(program.statements.count)
         """)
@@ -176,7 +161,7 @@ class ParserTests : XCTestCase {
       XCTAssertEqual(exp.operator, test.operator, """
         exp.operator is not '\(test.operator)'. got=\(exp.operator)
         """)
-      testLiteralExpression(exp.right!, test.value)
+      testLiteralExpression(exp.right, test.value)
     }
   }
 
@@ -209,11 +194,8 @@ class ParserTests : XCTestCase {
       Test(input: "false == false", leftVal: false, operator: "==", rightVal: false),
     ]
     for test in tests {
-      parser = Parser(test.input)
+      parser      = Parser(test.input)
       let program = parser.parseProgram()
-      if checkParserErrors() {
-        return
-      }
       XCTAssertEqual(program.statements.count, 1, """
         program does not contain 1 statement. got=\(program.statements.count)
         """)
@@ -241,7 +223,7 @@ class ParserTests : XCTestCase {
     XCTAssertEqual(opExp.operator, `operator`, """
       exp.operator is not '\(`operator`)'. got=\(opExp.operator)
       """)
-    testLiteralExpression(opExp.right!, right)
+    testLiteralExpression(opExp.right, right)
   }
 
   func testOperatorPrecedenceParsing() {
@@ -250,41 +232,44 @@ class ParserTests : XCTestCase {
       let expected: String
     }
     let tests = [
-      Test(input: "-a * b"                    , expected: "((-a) * b)"),
-      Test(input: "!-a"                       , expected: "(!(-a))"),
-      Test(input: "a + b + c"                 , expected: "((a + b) + c)"),
-      Test(input: "a + b - c"                 , expected: "((a + b) - c)"),
-      Test(input: "a * b * c"                 , expected: "((a * b) * c)"),
-      Test(input: "a * b / c"                 , expected: "((a * b) / c)"),
-      Test(input: "a + b / c"                 , expected: "(a + (b / c))"),
-      Test(input: "a + b * c + d / e - f"     , expected: "(((a + (b * c)) + (d / e)) - f)"),
-      Test(input: "3 + 4; -5 * 5"             , expected: "(3 + 4)((-5) * 5)"),
-      Test(input: "5 > 4 == 3 < 4"            , expected: "((5 > 4) == (3 < 4))"),
-      Test(input: "5 < 4 != 3 > 4"            , expected: "((5 < 4) != (3 > 4))"),
-      Test(input: "3 + 4 * 5 == 3 * 1 + 4 * 5", expected: "((3 + (4 * 5)) == ((3 * 1) + (4 * 5)))"),
-      Test(input: "3 + 4 * 5 == 3 * 1 + 4 * 5", expected: "((3 + (4 * 5)) == ((3 * 1) + (4 * 5)))"),
-      Test(input: "true"                      , expected: "true" ),
-      Test(input: "false"                     , expected: "false"),
-      Test(input: "3 > 5 == false"            , expected: "((3 > 5) == false)" ),
-      Test(input: "3 < 5 == true"             , expected: "((3 < 5) == true)"  ),
-      Test(input: "1 + (2 + 3) + 4"           , expected: "((1 + (2 + 3)) + 4)"),
-      Test(input: "(5 + 5) * 2"               , expected: "((5 + 5) * 2)"),
-      Test(input: "2 / (5 + 5)"               , expected: "(2 / (5 + 5))"),
-      Test(input: "(5 + 5) * 2 * (5 + 5)"     , expected: "(((5 + 5) * 2) * (5 + 5))"),
-      Test(input: "-(5 + 5)"                  , expected: "(-(5 + 5))"),
-      Test(input: "!(true == true)"           , expected: "(!(true == true))"),
-      Test(input: "a + add(b * c) + d"        , expected: "((a + add((b * c))) + d)"),
-      Test(input: "add(a + b + c * d / f + g)", expected: "add((((a + b) + ((c * d) / f)) + g))"),
+      Test(input: "-a * b"                     , expected: "((-a) * b)"),
+      Test(input: "!-a"                        , expected: "(!(-a))"),
+      Test(input: "a + b + c"                  , expected: "((a + b) + c)"),
+      Test(input: "a + b - c"                  , expected: "((a + b) - c)"),
+      Test(input: "a * b * c"                  , expected: "((a * b) * c)"),
+      Test(input: "a * b / c"                  , expected: "((a * b) / c)"),
+      Test(input: "a + b / c"                  , expected: "(a + (b / c))"),
+      Test(input: "a + b * c + d / e - f"      , expected: "(((a + (b * c)) + (d / e)) - f)"),
+      Test(input: "3 + 4; -5 * 5"              , expected: "(3 + 4)((-5) * 5)"),
+      Test(input: "5 > 4 == 3 < 4"             , expected: "((5 > 4) == (3 < 4))"),
+      Test(input: "5 < 4 != 3 > 4"             , expected: "((5 < 4) != (3 > 4))"),
+      Test(input: "3 + 4 * 5 == 3 * 1 + 4 * 5" , expected: "((3 + (4 * 5)) == ((3 * 1) + (4 * 5)))"),
+      Test(input: "3 + 4 * 5 == 3 * 1 + 4 * 5" , expected: "((3 + (4 * 5)) == ((3 * 1) + (4 * 5)))"),
+      Test(input: "true"                       , expected: "true" ),
+      Test(input: "false"                      , expected: "false"),
+      Test(input: "3 > 5 == false"             , expected: "((3 > 5) == false)" ),
+      Test(input: "3 < 5 == true"              , expected: "((3 < 5) == true)"  ),
+      Test(input: "1 + (2 + 3) + 4"            , expected: "((1 + (2 + 3)) + 4)"),
+      Test(input: "(5 + 5) * 2"                , expected: "((5 + 5) * 2)"),
+      Test(input: "2 / (5 + 5)"                , expected: "(2 / (5 + 5))"),
+      Test(input: "(5 + 5) * 2 * (5 + 5)"      , expected: "(((5 + 5) * 2) * (5 + 5))"),
+      Test(input: "-(5 + 5)"                   , expected: "(-(5 + 5))"),
+      Test(input: "!(true == true)"            , expected: "(!(true == true))"),
+      Test(input: "a + add(b * c) + d"         , expected: "((a + add((b * c))) + d)"),
+      Test(input: "add(a + b + c * d / f + g)" , expected: "add((((a + b) + ((c * d) / f)) + g))"),
+      Test(input: "a * [1, 2, 3, 4][b * c] * d", expected: "((a * ([1, 2, 3, 4][(b * c)])) * d)"),
       Test(
-        input: "add(a, b, 1, 2 * 3, 4 + 5, add(6, 7 * 8))",
-        expected: "add(a, b, 1, (2 * 3), (4 + 5), add(6, (7 * 8)))")
+        input   : "add(a, b, 1, 2 * 3, 4 + 5, add(6, 7 * 8))",
+        expected: "add(a, b, 1, (2 * 3), (4 + 5), add(6, (7 * 8)))"
+      ),
+      Test(
+        input   : "add(a * b[2], b[1], 2 * [1, 2][1])",
+        expected: "add((a * (b[2])), (b[1]), (2 * ([1, 2][1])))"
+      )
     ]
     for test in tests {
-      parser = Parser(test.input)
+      parser      = Parser(test.input)
       let program = parser.parseProgram()
-      if checkParserErrors() {
-        return
-      }
       let actual = program.asString()
       XCTAssertEqual(actual, test.expected, "expected=\(test.expected), got=\(actual)")
     }
@@ -300,11 +285,8 @@ class ParserTests : XCTestCase {
       Test(input: "false;", expected: false)
     ]
     for test in tests {
-      parser = Parser(test.input)
+      parser      = Parser(test.input)
       let program = parser.parseProgram()
-      if checkParserErrors() {
-        return
-      }
       XCTAssertEqual(program.statements.count, 1, """
         program has not enough statements. got=\(program.statements.count)
         """)
@@ -326,11 +308,8 @@ class ParserTests : XCTestCase {
   }
 
   func testIfExpression() {
-    parser = Parser("if (x < y) { x }")
+    parser      = Parser("if (x < y) { x }")
     let program = parser.parseProgram()
-    if checkParserErrors() {
-      return
-    }
     XCTAssertEqual(program.statements.count, 1, """
       program does not contain 1 statement. got=\(program.statements.count)
       """)
@@ -356,18 +335,15 @@ class ParserTests : XCTestCase {
         """)
       return
     }
-    testIdentifier(consequence.expression!, "x")
+    testIdentifier(consequence.expression, "x")
     XCTAssertNil(exp.alternative, """
       exp.alternative.statements was no nil. got=\(String(describing: exp.alternative))
       """)
   }
 
   func testIfElseExpression() {
-    parser = Parser("if (x < y) { x } else { y }")
+    parser      = Parser("if (x < y) { x } else { y }")
     let program = parser.parseProgram()
-    if checkParserErrors() {
-      return
-    }
     XCTAssertEqual(program.statements.count, 1, """
       program does not contain 1 statement. got=\(program.statements.count)
       """)
@@ -393,7 +369,7 @@ class ParserTests : XCTestCase {
         """)
       return
     }
-    testIdentifier(consequence.expression!, "x")
+    testIdentifier(consequence.expression, "x")
     XCTAssertEqual(exp.alternative!.statements.count, 1, """
       alternative is not 1 statements. got=\(exp.alternative!.statements.count)
       """)
@@ -404,15 +380,12 @@ class ParserTests : XCTestCase {
         """)
       return
     }
-    testIdentifier(alternative.expression!, "y")
+    testIdentifier(alternative.expression, "y")
   }
 
   func testFunctionLiteralParsing() {
-    parser = Parser("fn(x, y) { x + y }")
+    parser      = Parser("fn(x, y) { x + y }")
     let program = parser.parseProgram()
-    if checkParserErrors() {
-      return
-    }
     XCTAssertEqual(program.statements.count, 1, """
       program does not contain 1 statement. got=\(program.statements.count)
       """)
@@ -442,12 +415,12 @@ class ParserTests : XCTestCase {
         """)
       return
     }
-    testInfixExpression(bodyStmt.expression!, "x", "+", "y")
+    testInfixExpression(bodyStmt.expression, "x", "+", "y")
   }
 
   func testFunctionParameterParsing() {
     struct Test {
-      let input: String
+      let input        : String
       let expecedParams: [String]
     }
     let tests = [
@@ -456,11 +429,8 @@ class ParserTests : XCTestCase {
       Test(input: "fn (x, y, z) {};", expecedParams: ["x", "y", "z"])
     ]
     for test in tests {
-      parser = Parser(test.input)
+      parser      = Parser(test.input)
       let program = parser.parseProgram()
-      if checkParserErrors() {
-        return
-      }
       let stmt = program.statements[0] as! ExpressionStatement
       let function = stmt.expression as! FunctionLiteral
       XCTAssertEqual(function.parameters.count, test.expecedParams.count, """
@@ -474,11 +444,8 @@ class ParserTests : XCTestCase {
   }
 
   func testCallExpressionParsing() {
-    parser = Parser("add(1, 2 * 3, 4 + 5);")
+    parser      = Parser("add(1, 2 * 3, 4 + 5);")
     let program = parser.parseProgram()
-    if checkParserErrors() {
-      return 
-    }
     XCTAssertEqual(program.statements.count, 1, """
       program does not contain 1 statement. got=\(program.statements.count)
       """)
@@ -502,9 +469,9 @@ class ParserTests : XCTestCase {
 
   func testCallExpressionParameterParsing() {
     struct Test {
-      let input: String
+      let input        : String
       let expectedIdent: String
-      let expectedArgs: [String]
+      let expectedArgs : [String]
     }
     let tests = [
       Test(input: "add();"               , expectedIdent: "add", expectedArgs: []),
@@ -512,14 +479,14 @@ class ParserTests : XCTestCase {
       Test(input: "add(1, 2 * 3, 4 + 5);", expectedIdent: "add", expectedArgs: ["1", "(2 * 3)", "(4 + 5)"])
     ]
     for test in tests {
-      parser = Parser(test.input)
+      parser      = Parser(test.input)
       let program = parser.parseProgram()
-      let stmt = program.statements[0] as! ExpressionStatement
+      let stmt    = program.statements[0] as! ExpressionStatement
       guard let exp = stmt.expression as? CallExpression else {
         XCTFail("stmt.expression is not CallExpression. got=\(type(of: stmt.expression))")
         return
       }
-      testIdentifier(exp.function, test.expectedIdent)
+      testIdentifier(exp.function       , test.expectedIdent)
       XCTAssertEqual(exp.arguments.count, test.expectedArgs.count, """
         wrong number of arguments. want=\(test.expectedArgs.count), got=\(exp.arguments.count)
         """)
@@ -529,6 +496,105 @@ class ParserTests : XCTestCase {
           argument \(i) wrong. want=\(arg), got=\(exp.arguments[i].asString())
           """)
       }
+    }
+  }
+
+  func testStringLiteralExpression() {
+    parser      = Parser("\"hello world\"")
+    let program = parser.parseProgram()
+    let stmt = program.statements[0] as! ExpressionStatement
+    guard let literal = stmt.expression as? StringLiteral else {
+      XCTFail("exp not StringLiteral. got=\(type(of: stmt.expression))")
+      return
+    }
+    XCTAssertEqual(literal.value, "hello world", "literal.value not hello world. got=\(literal.value)")
+  }
+
+  func testParsingArrayLiterals() {
+    parser      = Parser("[1, 2*2, 3+3];")
+    let program = parser.parseProgram()
+    let stmt = program.statements[0] as! ExpressionStatement
+    guard let array = stmt.expression as? ArrayLiteral else {
+      XCTFail("exp not ast.ArrayLiteral. got=\(type(of: stmt.expression))")
+      return
+    }
+    XCTAssertEqual(array.elements.count, 3, "array.elements.count not 3. got=\(array.elements.count)")
+    testIntegerLiteral(array.elements[0], 1)
+    testInfixExpression(array.elements[1], 2, "*", 2)
+    testInfixExpression(array.elements[2], 3, "+", 3)
+  }
+
+  func testParsingIndexExpressions() {
+    parser      = Parser("myArray[1 + 1]")
+    let program = parser.parseProgram()
+    let stmt    = program.statements[0] as! ExpressionStatement
+    guard let indexExp = stmt.expression as? IndexExpression else {
+      XCTFail("exp not IndexExpression. got=\(type(of: stmt.expression))")
+      return
+    }
+    testIdentifier(indexExp.left, "myArray")
+    testInfixExpression(indexExp.index, 1, "+", 1)
+  }
+
+  func testParsingHashLiteralsStringKeys() {
+    parser      = Parser(#"{"one": 1, "two": 2, "three": 3}"#)
+    let program = parser.parseProgram()
+    let stmt    = program.statements[0] as! ExpressionStatement
+    guard let hash = stmt.expression as? HashLiteral else { 
+      XCTFail("exp not HashLiteral. got=\(type(of: stmt.expression))")
+      return
+    }
+    XCTAssertEqual(hash.store.count, 3, "hash.store has wrong length. got=\(hash.store.count)")
+    let expected = [
+      "one"  : 1,
+      "two"  : 2,
+      "three": 3
+    ]
+    for (key, value) in hash.store {
+      guard let literal = key as? StringLiteral else {
+        XCTFail("key is not ast.StringLiteral. got=\(type(of: key))")
+        return
+      }
+      let expectedValue = expected[literal.asString()]!
+      testIntegerLiteral(value, Int64(expectedValue))
+    }
+  }
+
+  func testParsingEmptyHashLiteral() {
+    parser      = Parser("{}")
+    let program = parser.parseProgram()
+    let stmt    = program.statements[0] as! ExpressionStatement
+    guard let hash = stmt.expression as? HashLiteral else { 
+      XCTFail("exp not HashLiteral. got=\(type(of: stmt.expression))")
+      return
+    }
+    XCTAssertEqual(hash.store.count, 0, "hash.store has wrong length. got=\(hash.store.count)")
+  }
+
+  func testParsingHashLiteralsWithExpressions() {
+    parser      = Parser(#"{"one": 0 + 1, "two": 10 - 8, "three": 15 / 5}"#)
+    let program = parser.parseProgram()
+    let stmt    = program.statements[0] as! ExpressionStatement
+    guard let hash = stmt.expression as? HashLiteral else { 
+      XCTFail("exp not HashLiteral. got=\(type(of: stmt.expression))")
+      return
+    }
+    XCTAssertEqual(hash.store.count, 3, "hash.store has wrong length. got=\(hash.store.count)")
+    let tests = [
+      "one"  : { (exp: Expression) in self.testInfixExpression(exp,  0, "+", 1) },
+      "two"  : { (exp: Expression) in self.testInfixExpression(exp, 10, "-", 8) },
+      "three": { (exp: Expression) in self.testInfixExpression(exp, 15, "/", 5) }
+    ]
+    for (key, value) in hash.store {
+      guard let literal = key as? StringLiteral else {
+        XCTFail("key is not ast.StringLiteral. got=\(type(of: key))")
+        return
+      }
+      guard let testFunc = tests[literal.asString()] else {
+        XCTFail("No test function for key \(literal.asString()) found")
+        return
+      }
+      testFunc(value)
     }
   }
 
@@ -578,18 +644,5 @@ class ParserTests : XCTestCase {
     XCTAssertEqual(bool.tokenLiteral(), "\(value)", """
       bool.tokenLiteral not \(value). got=\(bool.tokenLiteral())
       """)
-  }
-
-  private func checkParserErrors() -> Bool {
-    let errors = parser.errors
-    if errors.isEmpty {
-      return false
-    }
-    continueAfterFailure = true
-    XCTFail("Parser has \(errors.count) errors")
-    for error in errors {
-      XCTFail("parser error \(error)")
-    }
-    return true
   }
 }

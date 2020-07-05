@@ -14,14 +14,16 @@ extension Parser {
     case product     // *
     case `prefix`    // -X or !X
     case call        // myFunction(X)
+    case index       // array[index]
 
     init(_ type: Token.`Type`) {
       switch type {
-      case .equal   , .notEqual   : self = .equals
-      case .lessThan, .greaterThan: self = .lessGreater
-      case .plus    , .minus      : self = .sum
-      case .slash   , .asterisk   : self = .product
-      case .leftParen             : self = .call
+      case .equal      , .notEqual   : self = .equals
+      case .lessThan   , .greaterThan: self = .lessGreater
+      case .plus       , .minus      : self = .sum
+      case .slash      , .asterisk   : self = .product
+      case .leftBracket              : self = .index
+      case .leftParen                : self = .call
       default:
         self = .lowest
       }

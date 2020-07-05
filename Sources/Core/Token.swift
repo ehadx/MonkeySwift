@@ -8,11 +8,41 @@ public struct Token {
   public let type   : Token.`Type`
   public let literal: String
 
-  init(_ literal: String) {
-    self.type    = Type(literal)
-    self.literal = literal
+  init?(char: String) {
+    guard let type = Type(char: char) else {
+      return nil
+    }
+    self.type    = type
+    self.literal = char
   }
 
+  init?(keyword: String) {
+    guard let type = Type(keyword: keyword) else {
+      return nil
+    }
+    self.type    = type
+    self.literal = keyword
+  }
+
+  init(ident: String) {
+    self.type    = .ident
+    self.literal = ident 
+  }
+
+  init(number: String) {
+    self.type    = .int
+    self.literal = number 
+  }
+
+  init(string: String) {
+    self.type    = .string
+    self.literal = string
+  }
+
+  init(illegal: String) {
+    self.type    = .illegal
+    self.literal = illegal 
+  }
 }
 
 extension Token {
@@ -24,6 +54,7 @@ extension Token {
     //===--*- Identifiers + Literals -*--===//
     case ident
     case int
+    case string
 
     //===--*- Operators -*---------------===//
     case assign
@@ -42,11 +73,14 @@ extension Token {
     //===--*- Delimiters -*--------------===//
     case comma
     case semicolon
+    case colon
 
     case leftParen
     case rightParen
     case leftBrace
     case rightBrace
+    case leftBracket
+    case rightBracket
 
     //===--*- Keywords -*----------------===//
     case function
@@ -57,8 +91,8 @@ extension Token {
     case `else`
     case `return`
 
-    init(_ literal: String) {
-      switch literal {
+    init?(char: String) {
+      switch char {
       case "", "\0": self = .eof
       case "="     : self = .assign
       case "+"     : self = .plus
@@ -72,10 +106,20 @@ extension Token {
       case "!="    : self = .notEqual
       case ","     : self = .comma
       case ";"     : self = .semicolon
+      case ":"     : self = .colon
       case "("     : self = .leftParen
       case ")"     : self = .rightParen
       case "{"     : self = .leftBrace
       case "}"     : self = .rightBrace
+      case "["     : self = .leftBracket
+      case "]"     : self = .rightBracket
+      default: 
+        return nil
+      }
+    }
+
+    init?(keyword: String) {
+      switch keyword {
       case "fn"    : self = .function
       case "let"   : self = .let
       case "true"  : self = .true
@@ -83,40 +127,9 @@ extension Token {
       case "if"    : self = .if
       case "else"  : self = .else
       case "return": self = .return
-      default: 
-        // TODO: maybe try a different approach
-        //
-        if Type.isValid(identifier: literal) {
-          self = .ident
-        } else if Type.isValid(number: literal) {
-          self = .int
-        } else {
-          self = .illegal
-        }
+      default:
+        return nil
       }
-    }
-
-    static func isValid(identifier: String) -> Bool {
-      for (pos, char) in identifier.enumerated() {
-        if pos == 0 && !Lexer.isLetter(char) {
-          return false
-        }
-        // allow numbers after the first letter
-        //
-        if (!Lexer.isLetter(char) && !Lexer.isDigit(char)) {
-          return false
-        }
-      }
-      return true
-    }
-
-    static func isValid(number: String) -> Bool {
-      for char in number {
-        if !Lexer.isDigit(char) {
-          return false
-        }
-      }
-      return true
     }
   }
 }
