@@ -1,4 +1,4 @@
-//===-- Evaluator ---------------------------------------------*- Swift -*-===//
+//===-- evaluator ---------------------------------------------*- Swift -*-===//
 //
 // This file implements the monkey evaluator, a function that will take an
 // AST Node and return an Object.
@@ -6,95 +6,72 @@
 //===----------------------------------------------------------------------===//
 
 public func eval(_ node: Node, _ env: inout Enviroment) -> Object {
+  switch node {
   //===-*- Statements -*--===//
-  if let n = node as? Program {
-    return evalProgram(n, &env)
-  }
-  if let n = node as? BlockStatement {
-    return evalBlockStatement(n, &env)
-  }
-  if let n = node as? ExpressionStatement {
-    return eval(n.expression, &env)
-  }
-  if let n = node as? ReturnStatement {
+  case let n as Program            : return evalProgram(n, &env)
+  case let n as BlockStatement     : return evalBlockStatement(n, &env)
+  case let n as ExpressionStatement: return eval(n.expression, &env)
+
+  case let n as ReturnStatement    :
     let val = eval(n.returnValue, &env)
     return isError(val) ? val : ReturnValue(value: val)
-  }
-  if let n = node as? LetStatement {
+
+  case let n as LetStatement       :
     let val = eval(n.value, &env)
-    if isError(val) {
-      return val
+    if !isError(val) {
+      env[n.name.value] = val
     }
-    env[n.name.value] = val
     return val
-  }
 
   //===-*- Expressions -*-===//
-  if let n = node as? IntegerLiteral {
-    return Integer(value: n.value)
-  }
-  if let n = node as? BooleanExpression {
-    return Boolean(value: n.value)
-  }
-  if let n = node as? PrefixExpression {
+  case let n as IntegerLiteral     : return Integer(value: n.value)
+  case let n as BooleanExpression  : return Boolean(value: n.value)
+
+  case let n as PrefixExpression   :
     let right = eval(n.right, &env)
     return isError(right) ? right : evalPrefixExpression(n.operator, right)
-  }
-  if let n = node as? InfixExpression {
+
+  case let n as InfixExpression    :
     let left = eval(n.left, &env)
     if isError(left) {
       return left
     }
     let right = eval(n.right, &env)
     return isError(right) ? right : evalInfixExpression(n.operator, left, right)
-  }
-  if let n = node as? IfExpression {
-    return evalIfExpression(n, &env)
-  }
-  if let n = node as? Identifier {
-    return evalIdentifier(n, &env)
-  }
-  if let n = node as? FunctionLiteral {
-    let params = n.parameters
-    let body = n.body
-    return Function(parameters: params, body: body, env: env)
-  }
-  if let n = node as? CallExpression {
+
+  case let n as IfExpression       : return evalIfExpression(n, &env)
+  case let n as Identifier         : return evalIdentifier(n, &env)
+  case let n as FunctionLiteral    : return Function(parameters: n.parameters, body: n.body, env: env)
+
+  case let n as CallExpression     :
+    if n.function.tokenLiteral() == "quote" {
+      return quote(n.arguments[0], &env)
+    }
     let function = eval(n.function, &env)
     if isError(function) {
       return function
     }
     let args = evalExpressions(n.arguments, &env)
-    if args.count == 1 && isError(args[0]) {
-      return args[0]
-    }
-    return applyFunction(function, args)
-  }
-  if let n = node as? StringLiteral {
-    return StringObj(value: n.value)
-  }
-  if let n = node as? ArrayLiteral {
+    return args.count == 1 && isError(args[0]) ? args[0] : applyFunction(function, args)
+
+  case let n as StringLiteral      : return StringObj(value: n.value)
+  case let n as HashLiteral        : return evalHashLiteral(n, &env)
+
+  case let n as ArrayLiteral       :
     let elements = evalExpressions(n.elements, &env)
-    if elements.count == 1 && isError(elements[0]) {
-      return elements[0]
-    }
-    return ArrayObj(elements: elements)
-  }
-  if let n = node as? IndexExpression {
+    return elements.count == 1 && isError(elements[0]) ? elements[0] : ArrayObj(elements: elements)
+
+  case let n as IndexExpression    :
     let left = eval(n.left, &env)
     if isError(left) {
       return left
     }
     let index = eval(n.index, &env)
-    if isError(index) {
-      return index
-    }
-    return evalIndexExpression(left, index)
+    return isError(index) ? index : evalIndexExpression(left, index)
+
+  default:
+    return ErrorObj(message: "evaluation of \(type(of: node)) not implemented")
   }
-  if let n = node as? HashLiteral {
-    return evalHashLiteral(n, &env)
-  }
-  return ErrorObj(message: "evaluation of \(type(of: node)) not implemented")
 }
 
 func evalProgram(_ program: Program, _ env: inout Enviroment) -> Object {
@@ -108,7 +85,7 @@ func evalProgram(_ program: Program, _ env: inout Enviroment) -> Object {
       return result
     }
   }
-  return result
+  return result == nil ? Null() : result
 }
 
 func evalPrefixExpression(_ op: String, _ right: Object) -> Object {
@@ -126,24 +103,24 @@ func evalBangOperatorExpression(_ right: Object) -> Object {
   if let r = right as? Boolean {
     return r == TRUE ? FALSE : TRUE
   }
-  if right is Null {
-    return TRUE
-  }
-  return FALSE
+  return right is Null ? TRUE : FALSE
 }
 
 func evalMinusPrefixOperatorExpression(_ right: Object) -> Object {
-  if right.type != .integer {
+  guard right.type == .integer else {
     return ErrorObj(message: "unknown operator: -\(right.type)")
   }
   return Integer(value: -(right as! Integer).value)
 }
 
 func evalInfixExpression(_ op: String, _ left: Object, _ right: Object) -> Object {
-  if left.type == .integer && right.type == .integer {
+  guard left.type == right.type else {
+    return ErrorObj(message: "type mismatch: \(left.type) \(op) \(right.type)")
+  }
+  if left.type == .integer {
     return evalIntegerInfixExpression(op, left, right)
   }
-  if left.type == .string && right.type == .string {
+  if left.type == .string {
     return evalStringInfixExpression(op, left, right)
   }
   if op == "==" {
@@ -155,9 +132,6 @@ func evalInfixExpression(_ op: String, _ left: Object, _ right: Object) -> Objec
     let leftVal  =  left as! Boolean
     let rightVal = right as! Boolean
     return Boolean(value: leftVal != rightVal)
-  }
-  if left.type != right.type {
-    return ErrorObj(message: "type mismatch: \(left.type) \(op) \(right.type)")
   }
   return ErrorObj(message: "unknown operator: \(left.type) \(op) \(right.type)")
 }
@@ -180,7 +154,7 @@ func evalIntegerInfixExpression(_ op: String, _ left: Object, _ right: Object) -
 }
 
 func evalStringInfixExpression(_ op: String, _ left: Object, _ right: Object) -> Object {
-  if op != "+" {
+  guard op == "+" else {
     return ErrorObj(message: "unknown operator: \(left.type) \(op) \(right.type)")
   }
   let leftVal  = ( left as! StringObj).value
@@ -195,11 +169,11 @@ func evalIfExpression(_ e: IfExpression, _ env: inout Enviroment) -> Object {
   }
   if isTruthy(condition) {
     return eval(e.consequence, &env)
-  } else if let alt = e.alternative {
-    return eval(alt, &env)
-  } else {
-    return Null()
   }
+  if let alt = e.alternative {
+    return eval(alt, &env)
+  }
+  return Null()
 }
 
 func evalBlockStatement(_ block: BlockStatement, _ env: inout Enviroment) -> Object {
@@ -236,22 +210,19 @@ func evalExpressions(_ exps: [Expression], _ env: inout Enviroment) -> [Object] 
 }
 
 func evalIndexExpression(_ left: Object, _ index: Object) -> Object {
-  if let l = left as? ArrayObj {
-    return evalArrayIndexExpression(l, index)
-  } else if let l = left as? Hash {
-    return evalHashIndexExpression(l, index)
+  switch left {
+  case let l as ArrayObj: return evalArrayIndexExpression(l, index)
+  case let l as Hash    : return  evalHashIndexExpression(l, index)
+  default:
+    return ErrorObj(message: "index operator not supported: \(type(of: left))")
   }
-  return ErrorObj(message: "index operator not supported: \(type(of: left))")
 }
 
 func evalArrayIndexExpression(_ array: Object, _ index: Object) -> Object {
   let arrayObject = array as! ArrayObj
   let idx         = (index as! Integer).value
   let max         = Int64(arrayObject.elements.count) - 1
-  if idx < 0 || idx > max {
-    return Null()
-  }
-  return arrayObject.elements[Int(idx)]
+  return idx < 0 || idx > max ? Null() : arrayObject.elements[Int(idx)]
 }
 
 func evalHashLiteral(_ node: HashLiteral, _ env: inout Enviroment) -> Object {
@@ -285,16 +256,19 @@ func evalHashIndexExpression(_ hash: Object, _ index: Object) -> Object {
 }
 
 func applyFunction(_ fn: Object, _ args: [Object]) -> Object {
-  if let function = fn as? Function {
+  switch fn {
+  case let function as Function:
     var extendedEnv = extendFunctionEnv(function, args)
     let evaluated   = eval(function.body, &extendedEnv)
     return unwrapReturnValue(evaluated)
-  }
-  if let function = fn as? Builtin {
+
+  case let function as Builtin :
     let fn = unsafeBitCast(function.fn, to: (([Object]) -> Object).self)
     return fn(args)
+  
+  default:
+    return ErrorObj(message: "not a function: \(fn.type)")
   }
-  return ErrorObj(message: "not a function: \(fn.type)")
 }
 
 func extendFunctionEnv(_ fn: Function, _ args: [Object]) -> Enviroment {
@@ -312,8 +286,5 @@ func unwrapReturnValue(_ obj: Object) -> Object {
   return obj
 }
 
-func isTruthy(_ obj: Object) -> Bool {
-  obj is Boolean ? (obj as! Boolean).value : !(obj is Null)
-}
-
-func isError(_ obj: Object) -> Bool { obj.type == .error }
+func isTruthy(_ obj: Object) -> Bool { obj is Boolean ? (obj as! Boolean).value : !(obj is Null) }
+func  isError(_ obj: Object) -> Bool { obj.type == .error }

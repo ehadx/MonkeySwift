@@ -31,6 +31,7 @@ final class LexerTests: XCTestCase {
       "foo bar"
       [1, 2];
       {"foo": "bar"}
+      macro(x, y) { x + y; };
       ?
     """)
   }
@@ -65,8 +66,12 @@ final class LexerTests: XCTestCase {
       Token(char   :      "[")!, Token(number :      "1") , Token(char   :       ",")!,
       Token(number :      "2") , Token(char   :      "]")!, Token(char   :       ";")!,
       Token(char   :      "{")!, Token(string :    "foo") , Token(char   :       ":")!,
-      Token(string :    "bar") , Token(char   :      "}")!, Token(illegal:       "?") ,
-      Token(char   :     "\0")!,
+      Token(string :    "bar") , Token(char   :      "}")!, Token(keyword:   "macro")!,
+      Token(char   :      "(")!, Token(ident  :      "x") , Token(char   :       ",")!,
+      Token(ident  :      "y") , Token(char   :      ")")!, Token(char   :       "{")!,
+      Token(ident  :      "x") , Token(char   :      "+")!, Token(ident  :       "y") ,
+      Token(char   :      ";")!, Token(char   :      "}")!, Token(char   :       ";")!,
+      Token(illegal:      "?") , Token(char   :     "\0")!,
     ]
     for (i, test) in tests.enumerated() {
       let nextToken = lexer.nextToken()

@@ -598,6 +598,35 @@ class ParserTests: XCTestCase {
     }
   }
 
+  func testParcingMacroLiteral() {
+    parser      = Parser("macro(x, y) { x + y; }")
+    let program = parser.parseProgram()
+    XCTAssertEqual(program.statements.count, 1, """
+      program.statements does not contain 1 statements. got=\(program.statements.count)
+      """)
+    guard let stmt = program.statements[0] as? ExpressionStatement else {
+      XCTFail("statement is not ExpressionStatement. got=\(type(of: program.statements[0]))")
+      return
+    }
+    guard let macro = stmt.expression as? MacroLiteral else {
+      XCTFail("stmt.expression is not MacroLiteral. got=\(type(of: stmt.expression))")
+      return
+    }
+    XCTAssertEqual(macro.parameters.count, 2, """
+      macro literal parameters wrong. want 2, got=\(macro.parameters.count)
+      """)
+    testLiteralExpression(macro.parameters[0], "x")
+    testLiteralExpression(macro.parameters[1], "y")
+    XCTAssertEqual(macro.body.statements.count, 1, """
+      macro.body.statements has not 1 statements. got=\(macro.body.statements.count)
+      """)
+    guard let bodyStmt = macro.body.statements[0] as? ExpressionStatement else {
+      XCTFail("macro body stmt is not expressionStatement. got=\(type(of: macro.body.statements[0]))")
+      return
+    }
+    testInfixExpression(bodyStmt.expression, "x", "+", "y")
+  }
+
   private func testLiteralExpression(_ exp: Expression, _ expected: Any) {
     if let intVal = expected as? Int {
       testIntegerLiteral(exp, Int64(intVal))

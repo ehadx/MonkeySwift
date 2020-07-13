@@ -374,6 +374,46 @@ final class EvaluatorTests: XCTestCase {
     }
   }
 
+  func testQuoteUnquote() {
+    struct Test {
+      let input   : String
+      let expected: String
+    }
+    let tests = [
+      Test(input: "quote(5)"                              , expected: "5"                ),
+      Test(input: "quote(5 + 8) "                         , expected: "(5 + 8)"          ),
+      Test(input: "quote(foobar)"                         , expected: "foobar"           ),
+      Test(input: "quote(foobar + barfoo)"                , expected: "(foobar + barfoo)"),
+      Test(input: "quote(unquote(4))"                     , expected: "4"                ),
+      Test(input: "quote(unquote(4 + 4))"                 , expected: "8"                ),
+      Test(input: "quote(8 + unquote(4 + 4))"             , expected: "(8 + 8)"          ),
+      Test(input: "quote(unquote(4 + 4) + 8)"             , expected: "(8 + 8)"          ),
+      Test(input: "let foobar = 8; quote(foobar)"         , expected: "foobar"           ),
+      Test(input: "let foobar = 8; quote(unquote(foobar))", expected: "8"                ),
+      Test(input: "quote(unquote(true))"                  , expected: "true"             ),
+      Test(input: "quote(unquote(true == false))"         , expected: "false"            ),
+      Test(input: "quote(unquote(quote(4 + 4)))"          , expected: "(4 + 4)"          ),
+      Test(
+        input: """
+          let quotedInfixExpression = quote(4 + 4);
+          quote(unquote(4 + 4) + unquote(quotedInfixExpression))
+        """,
+        expected: "(8 + (4 + 4))"
+      )
+    ]
+    for test in tests {
+      let evaluated = testEval(test.input)
+      guard let quote = evaluated as? Quote else {
+        XCTFail("expected Quote. got=\(type(of: evaluated)) (\(String(describing: evaluated)))")
+        return
+      }
+      XCTAssertNotNil(quote.node, "quote.node is nil")
+      XCTAssertEqual(quote.node.asString(), test.expected, """
+        not equal. got=\(quote.node.asString()), want=\(test.expected)
+        """)
+    }
+  }
+
   private func testEval(_ input: String) -> Object {
     let parser  = Parser(input)
     let program = parser.parseProgram()

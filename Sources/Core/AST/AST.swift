@@ -21,6 +21,10 @@ public protocol Node {
   func asString() -> String        // this one too?
 }
 
+extension Node {
+  public static func ==(lhs: Self, rhs: Self) -> Bool { lhs.asString() == rhs.asString() }
+}
+
 protocol TokenNode: Node {
   var token: Token { get }
 }
@@ -37,10 +41,6 @@ protocol Statement : TokenNode {}
 protocol Expression: TokenNode {}
 
 extension Expression {
-  static func ==(lhs: Self, rhs: Self) -> Bool {
-    lhs.asString() == rhs.asString()
-  }
-
   func hash(into: inout Hasher) {
     into.combine(asString())
   }
@@ -49,7 +49,7 @@ extension Expression {
 // This Program node is going to be the root node of every AST our parser
 // produces.
 //
-public struct Program: Node {
+public struct Program: Node, Equatable {
   // Every valid Monkey program is a series of statements.
   // Here we stores the statements of a program.
   //
@@ -69,7 +69,7 @@ public struct Program: Node {
   }  
 }
 
-struct LetStatement: Statement {
+struct LetStatement: Statement, Equatable {
   let token: Token          // .let token
   var name : Identifier     // holds the identifier of the binding
   var value: Expression     // for the expression that produces the value
@@ -92,7 +92,7 @@ struct Identifier: Expression, Hashable {
   func asString() -> String { value }
 }
 
-struct ReturnStatement: Statement {
+struct ReturnStatement: Statement, Equatable {
   let token      : Token    // .let token
   var returnValue: Expression
 
@@ -105,9 +105,9 @@ struct ReturnStatement: Statement {
   }
 }
 
-struct ExpressionStatement: Statement {
+struct ExpressionStatement: Statement, Equatable {
   let token     : Token     // The first token of the expression
-  let expression: Expression
+  var expression: Expression
 
   func asString() -> String { expression.asString() }
 }
@@ -118,7 +118,7 @@ struct IntegerLiteral: Expression, Hashable {
   // contains the actual value the integer literal represents in the source
   // code.
   //
-  let value: Int64
+  var value: Int64
 
   func asString() -> String { token.literal }
 }
@@ -126,7 +126,7 @@ struct IntegerLiteral: Expression, Hashable {
 struct PrefixExpression: Expression, Hashable {
   let token     : Token        // The prefix token
   let `operator`: String       // contains either "-" or "!"
-  let right     : Expression   // the expression to the right of the operator.
+  var right     : Expression   // the expression to the right of the operator.
 
   func asString() -> String {
     var buffer = ""
@@ -140,9 +140,9 @@ struct PrefixExpression: Expression, Hashable {
 
 struct InfixExpression: Expression, Hashable {
   let token     : Token
-  let left      : Expression
+  var left      : Expression
   let `operator`: String
-  let right     : Expression
+  var right     : Expression
 
   func asString() -> String {
     var buffer = ""
@@ -164,9 +164,9 @@ struct BooleanExpression: Expression, Hashable {
 
 struct IfExpression: Expression, Hashable {
   let token      : Token
-  let condition  : Expression
-  let consequence: BlockStatement
-  let alternative: BlockStatement?
+  var condition  : Expression
+  var consequence: BlockStatement
+  var alternative: BlockStatement?
 
   func asString() -> String {
     var buffer = ""
@@ -182,7 +182,7 @@ struct IfExpression: Expression, Hashable {
   }
 }
 
-struct BlockStatement: Statement {
+struct BlockStatement: Statement, Equatable {
   let token     : Token         // the { token
   var statements: [Statement] = []
 
@@ -197,8 +197,8 @@ struct BlockStatement: Statement {
 
 struct FunctionLiteral: Expression, Hashable {
   let token     : Token
-  let parameters: [Identifier]
-  let body      : BlockStatement
+  var parameters: [Identifier]
+  var body      : BlockStatement
 
   func asString() -> String {
     var buffer = ""
@@ -243,7 +243,7 @@ struct StringLiteral: Expression, Hashable {
 
 struct ArrayLiteral: Expression, Hashable {
   let token   : Token
-  let elements: [Expression]
+  var elements: [Expression]
 
   func asString() -> String {
     var buffer = ""
@@ -260,8 +260,8 @@ struct ArrayLiteral: Expression, Hashable {
 
 struct IndexExpression: Expression, Hashable {
   let token: Token
-  let left : Expression
-  let index: Expression
+  var left : Expression
+  var index: Expression
 
   func asString() -> String {
     var buffer = ""
@@ -286,6 +286,26 @@ struct HashLiteral: Expression, Hashable {
       store.append("\((key as! Expression).asString()): \(value.asString())")
     }
     buffer += "{\(store.joined(separator: ", "))}"
+    return buffer
+  }
+}
+
+struct MacroLiteral: Expression, Hashable {
+  let token     : Token
+  var parameters: [Identifier]
+  let body      : BlockStatement
+
+  func asString() -> String {
+    var buffer = ""
+    var params: [String] = []
+    for param in parameters {
+      params.append(param.asString())
+    }
+    buffer += tokenLiteral()
+    buffer += "("
+    buffer += params.joined(separator: ", ")
+    buffer += ")"
+    buffer += body.asString()
     return buffer
   }
 }

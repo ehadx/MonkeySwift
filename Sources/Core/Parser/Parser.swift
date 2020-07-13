@@ -38,6 +38,7 @@ public final class Parser {
     .string     : parseStringLiteral,
     .leftBracket: parseArrayLiteral,
     .leftBrace  : parseHashLiteral,
+    .macro      : parseMacroLiteral
   ]
   lazy var infixParseFns: [Token.`Type`: InfixParseFn]  = [
     .plus       : parseInfixExpression,
@@ -381,5 +382,14 @@ extension Parser {
     }
     try expectPeek(.rightBrace)
     return hash
+  }
+
+  func parseMacroLiteral() throws -> Expression {
+    let token = curToken!
+    try expectPeek(.leftParen)
+    let params = try parseFunctionParameters()
+    try expectPeek(.leftBrace)
+    let body = try parseBlockStatement()
+    return MacroLiteral(token: token, parameters: params, body: body)
   }
 }

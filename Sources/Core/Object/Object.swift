@@ -15,6 +15,8 @@ public enum ObjectType {
   case error
   case function
   case builtin
+  case quote
+  case macro
 }
 
 // we’re going to represent every value we encounter when evaluating Monkey
@@ -140,6 +142,35 @@ struct Hash: Object {
     buffer += "{"
     buffer += store.joined(separator: ", ")
     buffer += "}"
+    return buffer
+  }
+}
+
+struct Quote: Object {
+  let type = ObjectType.quote
+  let node: Node
+
+  func inspect() -> String { "Quote(\(node.asString()))" }
+}
+
+struct Macro: Object {
+  let type = ObjectType.macro
+  let parameters: [Identifier]
+  let body      : BlockStatement
+  let env       : Enviroment
+
+  func inspect() -> String {
+    var buffer = ""
+    var params: [String] = []
+    for param in parameters {
+      params.append(param.asString())
+    }
+    buffer += "macro"
+    buffer += "("
+    buffer += params.joined(separator: ", ")
+    buffer += ") {\n"
+    buffer += body.asString()
+    buffer += "\n}"
     return buffer
   }
 }

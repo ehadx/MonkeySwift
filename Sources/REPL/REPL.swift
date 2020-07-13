@@ -26,17 +26,20 @@ private let monkeyFace = #"""
 
 public func start() {
   print(monkeyFace)
-  var env = Enviroment()
+  var env      = Enviroment()
+  var macroEnv = Enviroment() 
   while true {
     print(prompt, terminator: "")
     if let input = readLine() {
       let parser    = Parser(input)
-      let program   = parser.parseProgram()
+      var program   = parser.parseProgram()
       if program.count == 0 {
         continue
       }
-      let evaluated = eval(program, &env)
-      print(evaluated.inspect())
+      defineMacros(&program, &macroEnv)
+      let expanded  = expandMacros(program, &macroEnv)
+      let evaluated = eval(expanded, &env)
+      print("-> \(evaluated.inspect())")
     }
   }
 }

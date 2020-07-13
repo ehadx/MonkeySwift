@@ -84,6 +84,7 @@ extension Token {
 
     //===--*- Keywords -*----------------===//
     case function
+    case macro
     case `let`
     case `true`
     case `false`
@@ -127,6 +128,7 @@ extension Token {
       case "if"    : self = .if
       case "else"  : self = .else
       case "return": self = .return
+      case "macro" : self = .macro
       default:
         return nil
       }
