@@ -110,4 +110,9 @@ final class ASTTests: XCTestCase {
       }
     }
   }
+  
+  static var allTests = [
+    ("testAsString", testAsString),
+    ("testModify"  , testModify  ),
+  ]
 }

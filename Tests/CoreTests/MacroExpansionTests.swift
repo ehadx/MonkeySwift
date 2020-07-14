@@ -79,4 +79,9 @@ final class MacroExpansionTests: XCTestCase {
     let parser = Parser(input)
     return parser.parseProgram()
   }
+
+  static var allTests = [
+    ("testDefineMacros", testDefineMacros),
+    ("testExpandMacros", testExpandMacros),
+  ]
 }

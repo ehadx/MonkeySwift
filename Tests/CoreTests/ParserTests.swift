@@ -674,4 +674,28 @@ class ParserTests: XCTestCase {
       bool.tokenLiteral not \(value). got=\(bool.tokenLiteral())
       """)
   }
+
+  static var allTests = [
+    ("testLetStatements"                     , testLetStatements                     ),
+    ("testReturnStatements"                  , testReturnStatements                  ),
+    ("testIdentifierExpression"              , testIdentifierExpression              ),
+    ("testIntegerLiteralExpression"          , testIntegerLiteralExpression          ),
+    ("testParsingPrefixExpressions"          , testParsingPrefixExpressions          ),
+    ("testParsingInfixExpressions"           , testParsingInfixExpressions           ),
+    ("testOperatorPrecedenceParsing"         , testOperatorPrecedenceParsing         ),
+    ("testBooleanExpression"                 , testBooleanExpression                 ),
+    ("testIfExpression"                      , testIfExpression                      ),
+    ("testIfElseExpression"                  , testIfElseExpression                  ),
+    ("testFunctionLiteralParsing"            , testFunctionLiteralParsing            ),
+    ("testFunctionParameterParsing"          , testFunctionParameterParsing          ),
+    ("testCallExpressionParsing"             , testCallExpressionParsing             ),
+    ("testCallExpressionParameterParsing"    , testCallExpressionParameterParsing    ),
+    ("testStringLiteralExpression"           , testStringLiteralExpression           ),
+    ("testParsingArrayLiterals"              , testParsingArrayLiterals              ),
+    ("testParsingIndexExpressions"           , testParsingIndexExpressions           ),
+    ("testParsingHashLiteralsStringKeys"     , testParsingHashLiteralsStringKeys     ),
+    ("testParsingEmptyHashLiteral"           , testParsingEmptyHashLiteral           ),
+    ("testParsingHashLiteralsWithExpressions", testParsingHashLiteralsWithExpressions),
+    ("testParcingMacroLiteral"               , testParcingMacroLiteral               ),
+  ]  
 }

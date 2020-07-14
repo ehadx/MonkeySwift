@@ -447,4 +447,25 @@ final class EvaluatorTests: XCTestCase {
       return
     }
   }
+
+  static var allTests = [
+    ("testEvalIntegerExpression", testEvalIntegerExpression),
+    ("testEvalBooleanExpression", testEvalBooleanExpression),
+    ("testBangOperator"         , testBangOperator         ),
+    ("testIfElseExpression"     , testIfElseExpression     ),
+    ("testReturnStatements"     , testReturnStatements     ),
+    ("testErrorHandling"        , testErrorHandling        ),
+    ("testLetStatements"        , testLetStatements        ),
+    ("testFunctionObject"       , testFunctionObject       ),
+    ("testFunctionApplication"  , testFunctionApplication  ),
+    ("testEnclosingEnviroments" , testEnclosingEnviroments ),
+    ("testStringLiteral"        , testStringLiteral        ),
+    ("testStringConcatenation"  , testStringConcatenation  ),
+    ("testBuiltinFunctions"     , testBuiltinFunctions     ),
+    ("testArrayLiteral"         , testArrayLiteral         ),
+    ("testArrayIndexExpressions", testArrayIndexExpressions),
+    ("testHashLiteral"          , testHashLiteral          ),
+    ("testHashIndexExpressions" , testHashIndexExpressions ),
+    ("testQuoteUnquote"         , testQuoteUnquote         ),
+  ]
 }
